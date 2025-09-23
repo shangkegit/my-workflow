@@ -55,11 +55,6 @@ public class ModelManageController extends BaseController {
     private String prefix = "activiti/manage";
 
 
-    @GetMapping("")
-    public String modelList() {
-        return prefix + "/modelList";
-    }
-
     @ApiOperation("查询所有模型")
     @RequestMapping(value = "/modelLists", method = RequestMethod.POST)
     @ResponseBody
@@ -74,26 +69,18 @@ public class ModelManageController extends BaseController {
         }
         int start = (pageNum - 1) * pageSize;
         List<Model> page = query.orderByCreateTime().desc().listPage(start, pageSize);
+        int total = repositoryService.createModelQuery().list().size();
         TableDataInfo rspData = new TableDataInfo();
         rspData.setCode(0);
         rspData.setRows(page);
-        rspData.setTotal(query.list().size());
+        rspData.setTotal(total);
         return rspData;
-    }
-
-    /**
-     * 新增模型页面
-     * @return
-     */
-    @GetMapping("/add")
-    public String add()
-    {
-        return prefix + "/add";
     }
 
     /**
      * 新增模型
      */
+    @ApiOperation("新建模型")
     @PostMapping("/add")
     @ResponseBody
     public AjaxResult addSave(ModelParam modelRequest) throws JsonProcessingException {
@@ -130,6 +117,7 @@ public class ModelManageController extends BaseController {
         }
     }
 
+    @ApiOperation("发布模型")
     @RequestMapping("/deploy/{modelId}")
     @ResponseBody
     public AjaxResult modelDeployment(@PathVariable String modelId) {
@@ -151,6 +139,7 @@ public class ModelManageController extends BaseController {
         }
     }
 
+    @ApiOperation("删除模型")
     @PostMapping("/remove/{modelId}")
     @ResponseBody
     public AjaxResult removeModel(@PathVariable String modelId) {
@@ -158,6 +147,7 @@ public class ModelManageController extends BaseController {
         return AjaxResult.success("删除成功");
     }
 
+    @ApiOperation("导出模型")
     @GetMapping("/export/{modelId}")
     public void modelExport(@PathVariable String modelId, HttpServletResponse response) throws IOException {
         byte[] modelData = repositoryService.getModelEditorSource(modelId);
@@ -165,11 +155,11 @@ public class ModelManageController extends BaseController {
         BpmnModel bpmnModel = (new BpmnJsonConverter()).convertToBpmnModel(jsonNode);
         byte[] xmlBytes = (new BpmnXMLConverter()).convertToXML(bpmnModel, "UTF-8");
         ByteArrayInputStream in = new ByteArrayInputStream(xmlBytes);
-        IOUtils.copy(in, response.getOutputStream());
         String filename = bpmnModel.getMainProcess().getId() + ".bpmn20.xml";
         response.setHeader("Content-Disposition","attachment;filename=" + filename);
         response.setHeader("content-Type", "application/xml");
-        response.flushBuffer();
+//        response.flushBuffer();
+        IOUtils.copy(in, response.getOutputStream());
     }
 
 

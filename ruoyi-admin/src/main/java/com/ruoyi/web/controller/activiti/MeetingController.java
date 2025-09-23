@@ -4,11 +4,14 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.system.domain.Meeting;
 import com.ruoyi.system.domain.Purchase;
 import com.ruoyi.system.service.IMeetingService;
 import com.ruoyi.system.service.ISysUserService;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
 import org.activiti.engine.RuntimeService;
 import org.activiti.engine.TaskService;
 import org.activiti.engine.runtime.ProcessInstance;
@@ -24,7 +27,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import javax.annotation.Resource;
 import java.text.SimpleDateFormat;
 import java.util.List;
-
+@Api(value = "会议接口")
 @Controller
 @RequestMapping("/meeting")
 public class MeetingController extends BaseController {
@@ -44,16 +47,11 @@ public class MeetingController extends BaseController {
     private IMeetingService meetingService;
 
 
-    @GetMapping()
-    public String meeting()
-    {
-        return prefix + "/meeting";
-    }
-
 
     /**
      * 查询会议列表
      */
+    @ApiOperation("查询会议列表")
     @PostMapping("/list")
     @ResponseBody
     public TableDataInfo list(Meeting meeting)
@@ -66,6 +64,7 @@ public class MeetingController extends BaseController {
     /**
      * 导出会议列表
      */
+    @ApiOperation("导出会议列表")
     @PostMapping("/export")
     @ResponseBody
     public AjaxResult export(Meeting meeting)
@@ -75,21 +74,11 @@ public class MeetingController extends BaseController {
         return util.exportExcel(list, "会议数据");
     }
 
-    /**
-     * 新增会议
-     */
-    @GetMapping("/add")
-    public String add(ModelMap mmap)
-    {
-        SysUser user = getSysUser();
-        mmap.put("user", user);
-        mmap.put("userlist", userService.selectUserList(new SysUser()));
-        return prefix + "/add";
-    }
 
     /**
      * 新增保存会议
      */
+    @ApiOperation("新增保存会议")
     @PostMapping("/add")
     @ResponseBody
     public AjaxResult addSave(Meeting meeting)
@@ -97,6 +86,7 @@ public class MeetingController extends BaseController {
         return toAjax(meetingService.insertMeeting(meeting));
     }
 
+    @ApiOperation("修改会议申请")
     @PostMapping("/edit")
     @ResponseBody
     public AjaxResult edit(Meeting meeting)
@@ -107,6 +97,7 @@ public class MeetingController extends BaseController {
     /**
      * 删除会议
      */
+    @ApiOperation("删除会议")
     @PostMapping( "/remove")
     @ResponseBody
     public AjaxResult remove(String ids)
@@ -117,40 +108,36 @@ public class MeetingController extends BaseController {
     /**
      * 会议签到
      */
+    @ApiOperation("会议签到")
     @GetMapping("/signate")
-    public String signate(String taskid, ModelMap mmap)
+    @ResponseBody
+    public AjaxResult signate(String taskid)
     {
         Task t = taskService.createTaskQuery().taskId(taskid).singleResult();
         String processId = t.getProcessInstanceId();
         ProcessInstance p = runtimeService.createProcessInstanceQuery().processInstanceId(processId).singleResult();
         if (p != null) {
             Meeting apply = meetingService.selectMeetingById(Long.parseLong(p.getBusinessKey()));
-            mmap.put("apply", apply);
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            mmap.put("startTime", sdf.format(apply.getStartTime()));
-            mmap.put("endTime", sdf.format(apply.getEndTime()));
-            mmap.put("taskid", taskid);
+            return AjaxResult.success(apply);
         }
-        return prefix + "/signate";
+        return AjaxResult.error("流程不存在");
     }
 
     /**
      * 填写会议纪要
      */
+    @ApiOperation("填写会议纪要")
     @GetMapping("/input")
-    public String input(String taskid, ModelMap mmap)
+    @ResponseBody
+    public AjaxResult input(String taskid)
     {
         Task t = taskService.createTaskQuery().taskId(taskid).singleResult();
         String processId = t.getProcessInstanceId();
         ProcessInstance p = runtimeService.createProcessInstanceQuery().processInstanceId(processId).singleResult();
         if (p != null) {
             Meeting apply = meetingService.selectMeetingById(Long.parseLong(p.getBusinessKey()));
-            mmap.put("apply", apply);
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            mmap.put("startTime", sdf.format(apply.getStartTime()));
-            mmap.put("endTime", sdf.format(apply.getEndTime()));
-            mmap.put("taskid", taskid);
+            return AjaxResult.success(apply);
         }
-        return prefix + "/input";
+        return AjaxResult.error("流程不存在");
     }
 }

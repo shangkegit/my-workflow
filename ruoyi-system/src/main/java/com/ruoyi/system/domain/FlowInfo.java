@@ -10,6 +10,10 @@ import java.util.Date;
 public class FlowInfo {
     String processInstanceId;
 
+    String executionId;
+
+    String parentExecutionId;
+
     String businessKey;
 
     String name;
@@ -17,6 +21,8 @@ public class FlowInfo {
     Boolean suspended;
 
     Boolean ended;
+    // 是否存活
+    Boolean active;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     Date startTime;
@@ -108,5 +114,29 @@ public class FlowInfo {
 
     public void setAssignee(String assignee) {
         this.assignee = assignee;
+    }
+
+    public String getExecutionId() {
+        return executionId;
+    }
+
+    public void setExecutionId(String executionId) {
+        this.executionId = executionId;
+    }
+
+    public String getParentExecutionId() {
+        return parentExecutionId;
+    }
+
+    public void setParentExecutionId(String parentExecutionId) {
+        this.parentExecutionId = parentExecutionId;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 }

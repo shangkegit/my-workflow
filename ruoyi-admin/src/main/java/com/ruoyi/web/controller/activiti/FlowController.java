@@ -2,26 +2,26 @@ package com.ruoyi.web.controller.activiti;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.model.BpmnModel;
 import org.activiti.editor.constants.ModelDataJsonConstants;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
-import org.activiti.engine.ProcessEngineConfiguration;
-import org.activiti.engine.RepositoryService;
-import org.activiti.engine.RuntimeService;
-import org.activiti.engine.TaskService;
-import org.activiti.engine.repository.Model;
-import org.activiti.engine.repository.ProcessDefinition;
-import org.activiti.engine.repository.ProcessDefinitionQuery;
+import org.activiti.engine.*;
+import org.activiti.engine.repository.*;
 import org.activiti.image.ProcessDiagramGenerator;
 import org.apache.commons.io.IOUtils;
 
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.ruoyi.system.domain.Process;
@@ -31,8 +31,8 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -55,19 +55,9 @@ public class FlowController extends BaseController {
     @Resource
     ProcessEngineConfiguration configuration;
 
-    private String prefix = "activiti/manage";
+    @Resource
+    IdentityService identityService;
 
-    @GetMapping("")
-    public String processList()
-    {
-        return prefix + "/processList";
-    }
-
-    @GetMapping("deploy")
-    public String deploy()
-    {
-        return prefix + "/deployProcess";
-    }
 
     @ApiOperation("上传一个工作流文件")
     @RequestMapping(value = "/uploadworkflow", method = RequestMethod.POST)
@@ -94,17 +84,20 @@ public class FlowController extends BaseController {
     @RequestMapping(value = "/getprocesslists", method = RequestMethod.POST)
     @ResponseBody
     public TableDataInfo getlist(@RequestParam(required = false) String key, @RequestParam(required = false) String name,
-                                 Integer pageSize, Integer pageNum) {
-        ProcessDefinitionQuery query = repositoryService.createProcessDefinitionQuery();
+                                 @RequestParam(required = false) Boolean latest, Integer pageSize, Integer pageNum) {
+        ProcessDefinitionQuery queryCondition = repositoryService.createProcessDefinitionQuery();
         if (StringUtils.isNotEmpty(key)) {
-            query.processDefinitionKey(key);
+            queryCondition.processDefinitionKey(key);
         }
         if (StringUtils.isNotEmpty(name)) {
-            query.processDefinitionName(name);
+            queryCondition.processDefinitionName(name);
         }
+        if (latest) {
+            queryCondition.latestVersion();
+        }
+        int total = queryCondition.list().size();
         int start = (pageNum - 1) * pageSize;
-        int total = query.list().size();
-        List<ProcessDefinition> pageList = query.listPage(start, pageSize);
+        List<ProcessDefinition> pageList = queryCondition.orderByDeploymentId().desc().listPage(start, pageSize);
         List<Process> mylist = new ArrayList<Process>();
         for (int i = 0; i < pageList.size(); i++) {
             Process p = new Process();
@@ -114,6 +107,8 @@ public class FlowController extends BaseController {
             p.setName(pageList.get(i).getName());
             p.setResourceName(pageList.get(i).getResourceName());
             p.setDiagramresourceName(pageList.get(i).getDiagramResourceName());
+            p.setVersion(pageList.get(i).getVersion());
+            p.setSuspended(pageList.get(i).isSuspended());
             mylist.add(p);
         }
         TableDataInfo rspData = new TableDataInfo();
@@ -136,9 +131,11 @@ public class FlowController extends BaseController {
     @RequestMapping(value = "/showresource", method = RequestMethod.GET)
     public void showresource(@RequestParam("pdid") String pdid,
                        HttpServletResponse response) throws Exception {
+        response.setContentType("image/jpeg;charset=UTF-8");
+        response.setHeader("Content-Disposition","inline;filename=process.jpg");
         BpmnModel bpmnModel = repositoryService.getBpmnModel(pdid);
         ProcessDiagramGenerator diagramGenerator = configuration.getProcessDiagramGenerator();
-        InputStream is = diagramGenerator.generateDiagram(bpmnModel, "png",  "宋体", "宋体", "宋体", configuration.getClassLoader(), 1.0);
+        InputStream is = diagramGenerator.generateDiagram(bpmnModel, "jpg",  "宋体", "宋体", "宋体", configuration.getClassLoader(), 1.0);
         ServletOutputStream output = response.getOutputStream();
         IOUtils.copy(is, output);
     }
@@ -147,6 +144,8 @@ public class FlowController extends BaseController {
     @RequestMapping(value = "/showProcessDefinition/{pdid}/{resource}", method = RequestMethod.GET)
     public void showProcessDefinition(@PathVariable("pdid") String pdid, @PathVariable(value="resource") String resource,
                        HttpServletResponse response) throws Exception {
+        response.setContentType("application/xml");
+        response.setHeader("Content-Disposition","inline;filename=process.bpmn20.xml");
         InputStream is = repositoryService.getResourceAsStream(pdid, resource);
         ServletOutputStream output = response.getOutputStream();
         IOUtils.copy(is, output);
@@ -184,5 +183,47 @@ public class FlowController extends BaseController {
         // 保存模型json
         repositoryService.addModelEditorSource(modelData.getId(), objectNode.toString().getBytes(StandardCharsets.UTF_8));
         return objectNode.toString();
+    }
+
+    @ApiOperation("挂起一个流程定义")
+    @RequestMapping(value = "/suspendProcessDefinition", method = RequestMethod.GET)
+    @ResponseBody
+    public AjaxResult suspendProcessDefinition(@RequestParam("pdid") String pdid, @RequestParam("flag") Boolean flag,
+                                               @RequestParam(value="date", required = false) String date) throws Exception {
+        if (StringUtils.isNotEmpty(date)) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            repositoryService.suspendProcessDefinitionById(pdid, flag,  sdf.parse(date));
+        } else {
+            repositoryService.suspendProcessDefinitionById(pdid, flag, null);
+        }
+        return AjaxResult.success();
+    }
+
+    @ApiOperation("激活一个流程定义")
+    @RequestMapping(value = "/activateProcessDefinition", method = RequestMethod.GET)
+    @ResponseBody
+    public AjaxResult activateProcessDefinition(@RequestParam("pdid") String pdid, @RequestParam("flag") Boolean flag, @RequestParam(value="date", required = false) String date) throws Exception {
+        if (StringUtils.isNotEmpty(date)) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            repositoryService.activateProcessDefinitionById(pdid, flag,  sdf.parse(date));
+        } else {
+            repositoryService.activateProcessDefinitionById(pdid, flag, null);
+        }
+        return AjaxResult.success();
+    }
+
+
+    @ApiOperation("发起一个流程")
+    @Log(title = "发起一个流程", businessType = BusinessType.INSERT)
+    @PostMapping("/startProcess")
+    @ResponseBody
+    public AjaxResult startProcess(@RequestParam String pdid)
+    {
+        SysUser user = SecurityUtils.getLoginUser().getUser();
+        identityService.setAuthenticatedUserId(user.getUserName());
+        HashMap<String, Object> v = new HashMap<>();
+        v.put("name", "wsz");
+        runtimeService.startProcessInstanceById(pdid, v);
+        return AjaxResult.success();
     }
 }

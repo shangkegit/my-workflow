@@ -41,13 +41,13 @@ public class Purchase extends BaseEntity
     private String purchasemanager;
 
     // 财务
-    private String finance;
+    private String financeName;
 
     // 出纳
     private String pay;
 
     // 总经理
-    private String manager;
+    private String managerName;
 
     public void setId(Long id) 
     {
@@ -103,13 +103,7 @@ public class Purchase extends BaseEntity
         this.purchasemanager = purchasemanager;
     }
 
-    public String getFinance() {
-        return finance;
-    }
 
-    public void setFinance(String finance) {
-        this.finance = finance;
-    }
 
     public String getPay() {
         return pay;
@@ -119,12 +113,20 @@ public class Purchase extends BaseEntity
         this.pay = pay;
     }
 
-    public String getManager() {
-        return manager;
+    public String getFinanceName() {
+        return financeName;
     }
 
-    public void setManager(String manager) {
-        this.manager = manager;
+    public void setFinanceName(String financeName) {
+        this.financeName = financeName;
+    }
+
+    public String getManagerName() {
+        return managerName;
+    }
+
+    public void setManagerName(String managerName) {
+        this.managerName = managerName;
     }
 
     @Override

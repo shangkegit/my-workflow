@@ -5,10 +5,13 @@ import java.util.List;
 
 import com.ruoyi.common.core.domain.entity.SysUser;
 
+import org.activiti.engine.HistoryService;
 import org.activiti.engine.IdentityService;
 import org.activiti.engine.RuntimeService;
 import org.activiti.engine.TaskService;
+import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.runtime.ProcessInstance;
+import org.activiti.engine.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.ruoyi.system.mapper.LeaveapplyMapper;
@@ -40,6 +43,9 @@ public class LeaveapplyServiceImpl implements ILeaveapplyService
 
     @Resource
     IdentityService identityService;
+
+    @Resource
+    HistoryService historyService;
 
     /**
      * 查询请假
@@ -81,6 +87,9 @@ public class LeaveapplyServiceImpl implements ILeaveapplyService
         variables.put("applyuserid", leaveapply.getUserId());
         variables.put("deptleader", leaveapply.getDeptleader());
         runtimeService.startProcessInstanceByKey("leave", String.valueOf(leaveapply.getId()), variables);
+        // 自动完成第一个任务
+        Task autoTask = taskService.createTaskQuery().processDefinitionKey("leave").processInstanceBusinessKey(String.valueOf(leaveapply.getId())).singleResult();
+        taskService.complete(autoTask.getId());
         return rows;
     }
 
@@ -108,10 +117,13 @@ public class LeaveapplyServiceImpl implements ILeaveapplyService
         String[] keys = Convert.toStrArray(ids);
         for (String key : keys) {
             ProcessInstance process = runtimeService.createProcessInstanceQuery().processDefinitionKey("leave").processInstanceBusinessKey(key).singleResult();
-            try {
-                runtimeService.deleteProcessInstance(process.getId(),"删除");
-            } catch (Exception e) {
-                e.printStackTrace();
+            if (process != null) {
+                runtimeService.deleteProcessInstance(process.getId(), "删除");
+            }
+            // 删除历史数据
+            HistoricProcessInstance history = historyService.createHistoricProcessInstanceQuery().processDefinitionKey("leave").processInstanceBusinessKey(key).singleResult();
+            if (history != null){
+                historyService.deleteHistoricProcessInstance(history.getId());
             }
             leaveapplyMapper.deleteLeaveapplyById(Long.parseLong(key));
         }

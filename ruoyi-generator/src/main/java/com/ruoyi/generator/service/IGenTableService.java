@@ -61,10 +61,10 @@ public interface IGenTableService
     /**
      * 删除业务信息
      * 
-     * @param ids 需要删除的数据ID
+     * @param tableIds 需要删除的表数据ID
      * @return 结果
      */
-    public void deleteGenTableByIds(String ids);
+    public void deleteGenTableByIds(Long[] tableIds);
 
     /**
      * 创建表
@@ -102,9 +102,10 @@ public interface IGenTableService
      * 生成代码（自定义路径）
      * 
      * @param tableName 表名称
+     * @return 数据
      */
     public void generatorCode(String tableName);
-    
+
     /**
      * 同步数据库
      * 

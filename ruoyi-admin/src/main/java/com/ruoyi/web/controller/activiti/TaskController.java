@@ -1,6 +1,6 @@
 package com.ruoyi.web.controller.activiti;
 
-import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson2.JSON;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.entity.SysUser;
@@ -48,17 +48,6 @@ public class TaskController extends BaseController {
 
     private String prefix = "activiti/task";
 
-    @GetMapping("/mytask")
-    public String mytasks()
-    {
-        return prefix + "/mytasks";
-    }
-
-    @GetMapping("/alltasks")
-    public String alltasks()
-    {
-        return prefix + "/alltasks";
-    }
 
     /**
      * 查询我的待办任务列表
@@ -68,8 +57,7 @@ public class TaskController extends BaseController {
     @ResponseBody
     public TableDataInfo mylist(TaskInfo param)
     {
-        SysUser user = getSysUser();
-        String username = user.getLoginName();
+        String username = getUsername();
         TaskQuery condition = taskService.createTaskQuery().taskAssignee(username);
         if (StringUtils.isNotEmpty(param.getTaskName())) {
             condition.taskName(param.getTaskName());
@@ -167,8 +155,7 @@ public class TaskController extends BaseController {
     @RequestMapping(value = "/completeTask/{taskId}", method = RequestMethod.POST)
     @ResponseBody
     public AjaxResult completeTask(@PathVariable("taskId") String taskId, @RequestBody(required=false) Map<String, Object> variables) {
-        SysUser user = getSysUser();
-        String username = user.getLoginName();
+        String username = getUsername();
         taskService.setAssignee(taskId, username);
         // 查出流程实例id
         String processInstanceId = taskService.createTaskQuery().taskId(taskId).singleResult().getProcessInstanceId();

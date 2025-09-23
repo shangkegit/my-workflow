@@ -13,6 +13,10 @@ public class Process {
 
 	String diagramresourceName;
 
+	Integer version;
+
+	Boolean suspended;
+
 	public String getId() {
 		return id;
 	}
@@ -59,5 +63,21 @@ public class Process {
 
 	public void setDiagramresourceName(String diagramresourceName) {
 		this.diagramresourceName = diagramresourceName;
+	}
+
+	public Integer getVersion() {
+		return version;
+	}
+
+	public void setVersion(Integer version) {
+		this.version = version;
+	}
+
+	public Boolean getSuspended() {
+		return suspended;
+	}
+
+	public void setSuspended(Boolean suspended) {
+		this.suspended = suspended;
 	}
 }

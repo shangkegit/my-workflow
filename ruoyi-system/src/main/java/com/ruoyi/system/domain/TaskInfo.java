@@ -13,6 +13,8 @@ public class TaskInfo {
 	String processName;
 	
 	String taskName;
+
+	String type;
 	
 	String starter;
 	
@@ -150,5 +152,13 @@ public class TaskInfo {
 
 	public void setEndTime(String endTime) {
 		this.endTime = endTime;
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
 	}
 }

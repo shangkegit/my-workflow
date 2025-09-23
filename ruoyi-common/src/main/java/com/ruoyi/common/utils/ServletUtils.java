@@ -1,12 +1,20 @@
 package com.ruoyi.common.utils;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import javax.servlet.ServletRequest;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.core.text.Convert;
 
 /**
@@ -16,11 +24,6 @@ import com.ruoyi.common.core.text.Convert;
  */
 public class ServletUtils
 {
-    /**
-     * 定义移动端请求的所有可能类型
-     */
-    private final static String[] agent = { "Android", "iPhone", "iPod", "iPad", "Windows Phone", "MQQBrowser" };
-
     /**
      * 获取String参数
      */
@@ -70,6 +73,34 @@ public class ServletUtils
     }
 
     /**
+     * 获得所有请求参数
+     *
+     * @param request 请求对象{@link ServletRequest}
+     * @return Map
+     */
+    public static Map<String, String[]> getParams(ServletRequest request)
+    {
+        final Map<String, String[]> map = request.getParameterMap();
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * 获得所有请求参数
+     *
+     * @param request 请求对象{@link ServletRequest}
+     * @return Map
+     */
+    public static Map<String, String> getParamMap(ServletRequest request)
+    {
+        Map<String, String> params = new HashMap<>();
+        for (Map.Entry<String, String[]> entry : getParams(request).entrySet())
+        {
+            params.put(entry.getKey(), StringUtils.join(entry.getValue(), ","));
+        }
+        return params;
+    }
+
+    /**
      * 获取request
      */
     public static HttpServletRequest getRequest()
@@ -104,12 +135,12 @@ public class ServletUtils
      * 
      * @param response 渲染对象
      * @param string 待渲染的字符串
-     * @return null
      */
-    public static String renderString(HttpServletResponse response, String string)
+    public static void renderString(HttpServletResponse response, String string)
     {
         try
         {
+            response.setStatus(200);
             response.setContentType("application/json");
             response.setCharacterEncoding("utf-8");
             response.getWriter().print(string);
@@ -118,7 +149,6 @@ public class ServletUtils
         {
             e.printStackTrace();
         }
-        return null;
     }
 
     /**
@@ -151,26 +181,38 @@ public class ServletUtils
     }
 
     /**
-     * 判断User-Agent 是不是来自于手机
+     * 内容编码
+     * 
+     * @param str 内容
+     * @return 编码后的内容
      */
-    public static boolean checkAgentIsMobile(String ua)
+    public static String urlEncode(String str)
     {
-        boolean flag = false;
-        if (!ua.contains("Windows NT") || (ua.contains("Windows NT") && ua.contains("compatible; MSIE 9.0;")))
+        try
         {
-            // 排除 苹果桌面系统
-            if (!ua.contains("Windows NT") && !ua.contains("Macintosh"))
-            {
-                for (String item : agent)
-                {
-                    if (ua.contains(item))
-                    {
-                        flag = true;
-                        break;
-                    }
-                }
-            }
+            return URLEncoder.encode(str, Constants.UTF8);
         }
-        return flag;
+        catch (UnsupportedEncodingException e)
+        {
+            return StringUtils.EMPTY;
+        }
+    }
+
+    /**
+     * 内容解码
+     * 
+     * @param str 内容
+     * @return 解码后的内容
+     */
+    public static String urlDecode(String str)
+    {
+        try
+        {
+            return URLDecoder.decode(str, Constants.UTF8);
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            return StringUtils.EMPTY;
+        }
     }
 }

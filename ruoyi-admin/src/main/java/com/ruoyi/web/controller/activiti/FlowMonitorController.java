@@ -5,13 +5,13 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.bean.BeanUtils;
-import com.ruoyi.system.domain.FlowInfo;
-import com.ruoyi.system.domain.TaskInfo;
-import com.ruoyi.system.domain.VariableInfo;
+import com.ruoyi.system.domain.*;
+import com.ruoyi.system.mapper.ActRuExecutionMapper;
 import com.ruoyi.web.util.ActivitiTracingChart;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.model.BpmnModel;
+import org.activiti.bpmn.model.FlowElement;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricActivityInstance;
 import org.activiti.engine.history.HistoricProcessInstance;
@@ -19,13 +19,12 @@ import org.activiti.engine.history.HistoricProcessInstanceQuery;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.util.IoUtil;
 import org.activiti.engine.repository.ProcessDefinition;
-import org.activiti.engine.runtime.Execution;
-import org.activiti.engine.runtime.ProcessInstance;
-import org.activiti.engine.runtime.ProcessInstanceQuery;
+import org.activiti.engine.runtime.*;
 import org.activiti.engine.task.Comment;
 import org.activiti.engine.task.Task;
 import org.activiti.image.ProcessDiagramGenerator;
 import org.apache.commons.io.IOUtils;
+import org.aspectj.weaver.loadtime.Aj;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,9 +38,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * 流程监控
@@ -64,34 +61,17 @@ public class FlowMonitorController extends BaseController {
     RepositoryService repositoryService;
 
     @Resource
-    ProcessEngineConfiguration configuration;
+    ManagementService managementService;
 
     @Resource
     private ActivitiTracingChart activitiTracingChart;
 
+    @Resource
+    ActRuExecutionMapper actRuExecutionMapper;
+
+
     private String prefix = "activiti/monitor";
 
-    @GetMapping("/instance")
-    public String processList() {
-        return prefix + "/processInstance";
-    }
-
-    @GetMapping("/history")
-    public String processHistory() {
-        return prefix + "/processHistory";
-    }
-
-    @GetMapping("/historyDetail")
-    public String historyDetail(String processInstanceId, ModelMap mmap) {
-        mmap.put("processInstanceId", processInstanceId);
-        return prefix + "/processHistoryDetail";
-    }
-
-    @GetMapping("/processVariablesDetail")
-    public String processVariablesDetail(String processInstanceId, ModelMap mmap) {
-        mmap.put("processInstanceId", processInstanceId);
-        return prefix + "/processVariablesDetail";
-    }
 
     @ApiOperation("查询所有正在运行的流程实例列表")
     @RequestMapping(value = "/listProcess", method = RequestMethod.POST)
@@ -106,8 +86,8 @@ public class FlowMonitorController extends BaseController {
         if (StringUtils.isNotEmpty(name)) {
             condition.processDefinitionName(name);
         }
-        List<ProcessInstance> processList = condition.orderByProcessDefinitionId().desc().listPage(start, pageSize);
         int total = condition.orderByProcessDefinitionId().desc().list().size();
+        List<ProcessInstance> processList = condition.orderByProcessDefinitionId().desc().listPage(start, pageSize);
         List<FlowInfo> flows = new ArrayList<>();
         processList.stream().forEach(p -> {
             FlowInfo info = new FlowInfo();
@@ -120,16 +100,18 @@ public class FlowMonitorController extends BaseController {
             info.setEnded(p.isEnded());
             // 查看当前活动任务
             List<Task> tasks =  taskService.createTaskQuery().processInstanceId(p.getProcessInstanceId()).list();
-            String taskName = "";
-            String assignee = "";
-            for (Task t : tasks) {
-                taskName += t.getName() + ",";
-                assignee += t.getAssignee() + ",";
+            if (tasks.size() > 0) {
+                String taskName = "";
+                String assignee = "";
+                for (Task t : tasks) {
+                    taskName += t.getName() + ",";
+                    assignee += t.getAssignee() + ",";
+                }
+                taskName = taskName.substring(0, taskName.length() -1);
+                assignee = assignee.substring(0, assignee.length() -1);
+                info.setCurrentTask(taskName);
+                info.setAssignee(assignee);
             }
-            taskName = taskName.substring(0, taskName.length() -1);
-            assignee = assignee.substring(0, assignee.length() -1);
-            info.setCurrentTask(taskName);
-            info.setAssignee(assignee);
             flows.add(info);
         });
         TableDataInfo rspData = new TableDataInfo();
@@ -144,7 +126,6 @@ public class FlowMonitorController extends BaseController {
     @ResponseBody
     public TableDataInfo listHistoryProcess(@RequestParam(required = false) String bussinesskey, @RequestParam(required = false) String name,
                                             Integer pageSize, Integer pageNum) {
-        int total = historyService.createHistoricProcessInstanceQuery().orderByProcessInstanceStartTime().desc().list().size();
         int start = (pageNum - 1) * pageSize;
         HistoricProcessInstanceQuery condition = historyService.createHistoricProcessInstanceQuery();
         if (StringUtils.isNotEmpty(bussinesskey)) {
@@ -153,6 +134,7 @@ public class FlowMonitorController extends BaseController {
         if (StringUtils.isNotEmpty(name)) {
             condition.processDefinitionName(name);
         }
+        int total = condition.orderByProcessInstanceStartTime().desc().list().size();
         List<HistoricProcessInstance> processList = condition.orderByProcessInstanceStartTime().desc().listPage(start, pageSize);
         List<FlowInfo> flows = new ArrayList<>();
         processList.stream().forEach(p -> {
@@ -167,16 +149,18 @@ public class FlowMonitorController extends BaseController {
                 info.setEnded(false);
                 // 查看当前活动任务
                 List<Task> tasks =  taskService.createTaskQuery().processInstanceId(p.getId()).list();
-                String taskName = "";
-                String assignee = "";
-                for (Task t : tasks) {
-                    taskName += t.getName() + ",";
-                    assignee += t.getAssignee() + ",";
+                if (tasks.size() > 0) {
+                    String taskName = "";
+                    String assignee = "";
+                    for (Task t : tasks) {
+                        taskName += t.getName() + ",";
+                        assignee += t.getAssignee() + ",";
+                    }
+                    taskName = taskName.substring(0, taskName.length() -1);
+                    assignee = assignee.substring(0, assignee.length() -1);
+                    info.setCurrentTask(taskName);
+                    info.setAssignee(assignee);
                 }
-                taskName = taskName.substring(0, taskName.length() -1);
-                assignee = assignee.substring(0, assignee.length() -1);
-                info.setCurrentTask(taskName);
-                info.setAssignee(assignee);
             } else {
                 info.setEnded(true);
             }
@@ -194,8 +178,8 @@ public class FlowMonitorController extends BaseController {
     @ResponseBody
     public TableDataInfo history(@PathVariable String processInstanceId, Integer pageSize, Integer pageNum) {
         int start = (pageNum - 1) * pageSize;
-        List<HistoricActivityInstance> history = historyService.createHistoricActivityInstanceQuery().processInstanceId(processInstanceId).activityType("userTask").orderByHistoricActivityInstanceStartTime().asc().listPage(start, pageSize);
-        int total = historyService.createHistoricActivityInstanceQuery().processInstanceId(processInstanceId).activityType("userTask").orderByHistoricActivityInstanceStartTime().asc().list().size();
+        List<HistoricActivityInstance> history = historyService.createHistoricActivityInstanceQuery().processInstanceId(processInstanceId).orderByHistoricActivityInstanceStartTime().asc().listPage(start, pageSize);
+        int total = historyService.createHistoricActivityInstanceQuery().processInstanceId(processInstanceId).orderByHistoricActivityInstanceStartTime().asc().list().size();
         List<TaskInfo> infos  = new ArrayList<>();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         history.stream().forEach(h->{
@@ -207,6 +191,7 @@ public class FlowMonitorController extends BaseController {
             }
             info.setAssignee(h.getAssignee());
             info.setTaskName(h.getActivityName());
+            info.setType(h.getActivityType());
             List<Comment> comments = taskService.getTaskComments(h.getTaskId());
             if (comments.size() > 0) {
                 info.setComment(comments.get(0).getFullMessage());
@@ -223,29 +208,60 @@ public class FlowMonitorController extends BaseController {
     @ApiOperation("查询所有正在运行的执行实例列表")
     @RequestMapping(value = "/listExecutions", method = RequestMethod.POST)
     @ResponseBody
-    public TableDataInfo listExecutions(@RequestParam(required = false) String key, @RequestParam(required = false) String name,
-                                        Integer pageSize, Integer pageNum) {
-        int start = (pageNum - 1) * pageSize;
-        List<Execution> executionList = runtimeService.createExecutionQuery().orderByProcessInstanceId().desc().listPage(start, pageSize);
-        int total = runtimeService.createExecutionQuery().orderByProcessInstanceId().desc().list().size();
+    public List<FlowInfo> listExecutions(@RequestParam(required = false) String name) {
+        List<ActRuExecution> executionList = actRuExecutionMapper.selectActRuExecutionListByProcessName(name);
         List<FlowInfo> flows = new ArrayList<>();
         executionList.stream().forEach(p -> {
             FlowInfo info = new FlowInfo();
-            info.setProcessInstanceId(p.getProcessInstanceId());
-            info.setSuspended(p.isSuspended());
-            info.setEnded(p.isEnded());
+            info.setProcessInstanceId(p.getProcInstId());
+            if (p.getSuspensionState() == 1L) {
+                info.setSuspended(false);
+            } else {
+                info.setSuspended(true);
+            }
+            if (p.getIsActive() == 0) {
+                info.setActive(false);
+            } else {
+                info.setActive(true);
+            }
+            if (p.getActId() != null) {
+                ProcessInstance process = runtimeService.createProcessInstanceQuery().processInstanceId(p.getProcInstId()).singleResult();
+                BpmnModel bpmnModel = repositoryService.getBpmnModel(process.getProcessDefinitionId());
+                Map<String, FlowElement> nodes = bpmnModel.getMainProcess().getFlowElementMap();
+                info.setCurrentTask(nodes.get(p.getActId()).getName());
+                info.setName(process.getProcessDefinitionName());
+            } else {
+                ProcessInstance process = runtimeService.createProcessInstanceQuery().processInstanceId(p.getProcInstId()).singleResult();
+                info.setStartTime(process.getStartTime());
+                info.setStartUserId(process.getStartUserId());
+                info.setName(process.getProcessDefinitionName());
+                List<Task> tasks =  taskService.createTaskQuery().processInstanceId(p.getProcInstId()).list();
+                if (tasks.size() > 0) {
+                    String taskName = "";
+                    for (Task t : tasks) {
+                        taskName += t.getName() + ",";
+                    }
+                    taskName = taskName.substring(0, taskName.length() -1);
+                    info.setCurrentTask(taskName);
+                }
+            }
+            info.setStartTime(p.getStartTime());
+            info.setExecutionId(p.getId());
+            if (p.getParentId() == null) {
+                info.setParentExecutionId("0");
+            } else {
+                info.setParentExecutionId(p.getParentId());
+            }
             flows.add(info);
         });
-        TableDataInfo rspData = new TableDataInfo();
-        rspData.setCode(0);
-        rspData.setRows(flows);
-        rspData.setTotal(total);
-        return rspData;
+        return flows;
     }
 
-    @ApiOperation("流程图进度追踪,已结束标红，运行中标绿")
+    @ApiOperation("流程图进度追踪")
     @RequestMapping(value = {"/traceProcess/{processInstanceId}"}, method = RequestMethod.GET)
     public void traceprocess(@PathVariable String processInstanceId, HttpServletResponse response) throws IOException {
+        response.setContentType("image/jpeg;charset=UTF-8");
+        response.setHeader("Content-Disposition", "inline; filename= trace.png");
         activitiTracingChart.generateFlowChart(processInstanceId, response.getOutputStream());
     }
 
@@ -276,12 +292,104 @@ public class FlowMonitorController extends BaseController {
         variables.forEach(v->{
             VariableInfo info = new VariableInfo();
             BeanUtils.copyBeanProp(info, v);
-            info.setValue(v.getValue().toString());
+            if (v.getValue() != null) {
+                info.setValue(v.getValue().toString());
+            }
             infos.add(info);
         });
         TableDataInfo rspData = new TableDataInfo();
         rspData.setCode(0);
         rspData.setRows(infos);
+        rspData.setTotal(total);
+        return rspData;
+    }
+
+    @ApiOperation("按类型查询所有的作业列表:定时作业、异步作业、挂起作业、死亡作业")
+    @PostMapping(value = "/listJobs")
+    @ResponseBody
+    public TableDataInfo listJobs(@RequestParam(required = false) String processDefinitionId, @RequestParam(required = false) String startDate,
+        @RequestParam(required = false) String endDate,@RequestParam Integer type, Integer pageSize, Integer pageNum) throws Exception {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        int start = (pageNum - 1) * pageSize;
+        int total = 0;
+        List<Job> jobList = null;
+        ArrayList<DeadLetterJob> jobs = new ArrayList<>();
+        TableDataInfo rspData = new TableDataInfo();
+        if (type == 1) {
+            // 定时作业
+            TimerJobQuery condition = managementService.createTimerJobQuery();
+            if (StringUtils.isNotEmpty(processDefinitionId)) {
+                condition.processDefinitionId(processDefinitionId);
+            }
+            if (StringUtils.isNotEmpty(startDate)) {
+                condition.duedateHigherThan(sdf.parse(startDate));
+            }
+            if (StringUtils.isNotEmpty(endDate)) {
+                condition.duedateLowerThan(sdf.parse(endDate));
+            }
+            total = condition.orderByJobDuedate().desc().list().size();
+            jobList = condition.orderByJobDuedate().desc().listPage(start, pageSize);
+            rspData.setRows(jobList);
+        } else if (type == 2) {
+            // 异步作业
+            JobQuery condition = managementService.createJobQuery();
+            if (StringUtils.isNotEmpty(processDefinitionId)) {
+                condition.processDefinitionId(processDefinitionId);
+            }
+            if (StringUtils.isNotEmpty(startDate)) {
+                condition.duedateHigherThan(sdf.parse(startDate));
+            }
+            if (StringUtils.isNotEmpty(endDate)) {
+                condition.duedateLowerThan(sdf.parse(endDate));
+            }
+            total = condition.orderByJobDuedate().desc().list().size();
+            jobList = condition.orderByJobDuedate().desc().listPage(start, pageSize);
+            rspData.setRows(jobList);
+        } else if (type == 3) {
+            // 挂起作业
+            SuspendedJobQuery condition = managementService.createSuspendedJobQuery();
+            if (StringUtils.isNotEmpty(processDefinitionId)) {
+                condition.processDefinitionId(processDefinitionId);
+            }
+            if (StringUtils.isNotEmpty(startDate)) {
+                condition.duedateHigherThan(sdf.parse(startDate));
+            }
+            if (StringUtils.isNotEmpty(endDate)) {
+                condition.duedateLowerThan(sdf.parse(endDate));
+            }
+            total = condition.orderByJobDuedate().desc().list().size();
+            jobList = condition.orderByJobDuedate().desc().listPage(start, pageSize);
+            rspData.setRows(jobList);
+        } else if (type == 4) {
+            // 死亡作业
+            DeadLetterJobQuery condition = managementService.createDeadLetterJobQuery();
+            if (StringUtils.isNotEmpty(processDefinitionId)) {
+                condition.processDefinitionId(processDefinitionId);
+            }
+            if (StringUtils.isNotEmpty(startDate)) {
+                condition.duedateHigherThan(sdf.parse(startDate));
+            }
+            if (StringUtils.isNotEmpty(endDate)) {
+                condition.duedateLowerThan(sdf.parse(endDate));
+            }
+            total = condition.orderByJobDuedate().desc().list().size();
+            jobList = condition.orderByJobDuedate().desc().listPage(start, pageSize);
+
+            jobList.forEach(j->{
+                DeadLetterJob job = new DeadLetterJob();
+                job.setId(j.getId());
+                job.setDueDate(j.getDuedate());
+                job.setJobType(j.getJobType());
+                job.setExceptionMessage(j.getExceptionMessage());
+                job.setJobHandlerType(j.getJobHandlerType());
+                job.setProcessDefId(j.getProcessDefinitionId());
+                job.setProcessInstanceId(j.getProcessInstanceId());
+                job.setExecutionId(j.getExecutionId());
+                jobs.add(job);
+            });
+            rspData.setRows(jobs);
+        }
+        rspData.setCode(0);
         rspData.setTotal(total);
         return rspData;
     }

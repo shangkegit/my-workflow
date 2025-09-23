@@ -3,9 +3,11 @@ package com.ruoyi.system.service.impl;
 import java.util.HashMap;
 import java.util.List;
 
+import org.activiti.engine.HistoryService;
 import org.activiti.engine.IdentityService;
 import org.activiti.engine.RuntimeService;
 import org.activiti.engine.TaskService;
+import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,9 @@ public class PurchaseServiceImpl implements IPurchaseService
 
     @Resource
     IdentityService identityService;
+
+    @Resource
+    HistoryService historyService;
 
     /**
      * 查询采购
@@ -78,9 +83,9 @@ public class PurchaseServiceImpl implements IPurchaseService
         HashMap<String, Object> variables = new HashMap<>();
         variables.put("starter", purchase.getApplyer());
         variables.put("purchasemanager", purchase.getPurchasemanager());
-        variables.put("finance", purchase.getFinance());
+        variables.put("financeName", purchase.getFinanceName());
         variables.put("pay", purchase.getPay());
-        variables.put("manager", purchase.getManager());
+        variables.put("managerName", purchase.getManagerName());
         variables.put("money", Double.parseDouble(purchase.getTotal()));
         runtimeService.startProcessInstanceByKey("purchase", String.valueOf(purchase.getId()), variables);
         return row;
@@ -110,10 +115,13 @@ public class PurchaseServiceImpl implements IPurchaseService
         String[] keys = Convert.toStrArray(ids);
         for (String key : keys) {
             ProcessInstance process = runtimeService.createProcessInstanceQuery().processDefinitionKey("purchase").processInstanceBusinessKey(key).singleResult();
-            try {
-                runtimeService.deleteProcessInstance(process.getId(),"删除");
-            } catch (Exception e) {
-                e.printStackTrace();
+            if (process != null) {
+                runtimeService.deleteProcessInstance(process.getId(), "删除");
+            }
+            // 删除历史数据
+            HistoricProcessInstance history = historyService.createHistoricProcessInstanceQuery().processDefinitionKey("purchase").processInstanceBusinessKey(key).singleResult();
+            if (history != null) {
+                historyService.deleteHistoricProcessInstance(history.getId());
             }
             purchaseMapper.deletePurchaseByIds(Convert.toStrArray(ids));
         }
