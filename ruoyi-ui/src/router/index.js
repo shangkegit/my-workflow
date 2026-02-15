@@ -100,6 +100,19 @@ export const constantRoutes = [
         meta: { title: '处理待办' }
       }
     ]
+  },
+  {
+    path: '/process/designer',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: ':modelId',
+        component: () => import('@/views/process/designer/index'),
+        name: 'ProcessDesigner',
+        meta: { title: '流程设计器', activeMenu: '/process/model', noCache: true }
+      }
+    ]
   }
 ]
 

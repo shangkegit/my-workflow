@@ -165,8 +165,7 @@ export default {
             return commonHelper.normalizeDateTimeString(createTime);
         },
         handleDesign(index, row) {
-            const path = "/editor?modelId=" + row.id;
-            commonHelper.openWindow(path);
+            this.$router.push({ path: `/process/designer/${row.id}` });
         },
         handlePublish(index, row) {
             const id = row.id;

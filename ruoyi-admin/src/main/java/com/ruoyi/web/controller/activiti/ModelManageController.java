@@ -84,9 +84,26 @@ public class ModelManageController extends BaseController {
     @PostMapping("/add")
     @ResponseBody
     public AjaxResult addSave(ModelParam modelRequest) throws JsonProcessingException {
+        String key = modelRequest.getKey();
+
+        // 检查模型 key 是否已存在
+        ModelQuery modelQuery = repositoryService.createModelQuery();
+        List<Model> existingModels = modelQuery.modelKey(key).list();
+        if (existingModels.size() > 0) {
+            return AjaxResult.error("模型标识已存在，请使用其他标识");
+        }
+
+        // 检查已部署流程的 key 是否已存在
+        long deployedCount = repositoryService.createProcessDefinitionQuery()
+                .processDefinitionKey(key)
+                .count();
+        if (deployedCount > 0) {
+            return AjaxResult.error("该流程标识已被已部署的流程使用，请使用其他标识");
+        }
+
         Model model = repositoryService.newModel();
         model.setCategory(modelRequest.getCategory());
-        model.setKey(modelRequest.getKey());
+        model.setKey(key);
         ObjectNode modelNode = objectMapper.createObjectNode();
         modelNode.put(ModelDataJsonConstants.MODEL_NAME, modelRequest.getName());
         modelNode.put(ModelDataJsonConstants.MODEL_DESCRIPTION, modelRequest.getDescription());
@@ -94,27 +111,22 @@ public class ModelManageController extends BaseController {
         model.setMetaInfo(modelNode.toString());
         model.setName(modelRequest.getName());
         model.setVersion(modelRequest.getVersion());
-        ModelQuery modelQuery = repositoryService.createModelQuery();
-        List<Model> list = modelQuery.modelKey(modelRequest.getKey()).list();
-        if (list.size() > 0) {
-            return AjaxResult.error("模型标识不能重复");
-        } else {
-            // 保存模型到act_re_model表
-            repositoryService.saveModel(model);
-            HashMap<String, Object> content = new HashMap();
-            content.put("resourceId", model.getId());
-            HashMap<String, String> properties = new HashMap();
-            properties.put("process_id", modelRequest.getKey());
-            properties.put("name", modelRequest.getName());
-            properties.put("category", modelRequest.getCategory());
-            content.put("properties", properties);
-            HashMap<String, String> stencilset = new HashMap();
-            stencilset.put("namespace", "http://b3mn.org/stencilset/bpmn2.0#");
-            content.put("stencilset", stencilset);
-            // 保存模型文件到act_ge_bytearray表
-            repositoryService.addModelEditorSource(model.getId(), objectMapper.writeValueAsBytes(content));
-            return AjaxResult.success(model);
-        }
+
+        // 保存模型到act_re_model表
+        repositoryService.saveModel(model);
+        HashMap<String, Object> content = new HashMap();
+        content.put("resourceId", model.getId());
+        HashMap<String, String> properties = new HashMap();
+        properties.put("process_id", key);
+        properties.put("name", modelRequest.getName());
+        properties.put("category", modelRequest.getCategory());
+        content.put("properties", properties);
+        HashMap<String, String> stencilset = new HashMap();
+        stencilset.put("namespace", "http://b3mn.org/stencilset/bpmn2.0#");
+        content.put("stencilset", stencilset);
+        // 保存模型文件到act_ge_bytearray表
+        repositoryService.addModelEditorSource(model.getId(), objectMapper.writeValueAsBytes(content));
+        return AjaxResult.success(model);
     }
 
     @ApiOperation("发布模型")
@@ -123,19 +135,80 @@ public class ModelManageController extends BaseController {
     public AjaxResult modelDeployment(@PathVariable String modelId) {
         try {
             Model model = repositoryService.getModel(modelId);
+            if (model == null) {
+                return AjaxResult.error("模型不存在");
+            }
+
             byte[] modelData = repositoryService.getModelEditorSource(modelId);
-            JsonNode jsonNode = objectMapper.readTree(modelData);
-            BpmnModel bpmnModel = (new BpmnJsonConverter()).convertToBpmnModel(jsonNode);
-            Deployment deploy = repositoryService.createDeployment().category(model.getCategory())
-                    .name(model.getName()).key(model.getKey())
+            if (modelData == null || modelData.length == 0) {
+                return AjaxResult.error("模型数据为空，请先保存模型");
+            }
+
+            BpmnModel bpmnModel;
+            String modelContent = new String(modelData, java.nio.charset.StandardCharsets.UTF_8);
+
+            // 检测格式：JSON 还是 XML
+            if (modelContent.trim().startsWith("{")) {
+                // 旧的 JSON 格式
+                JsonNode jsonNode = objectMapper.readTree(modelData);
+                bpmnModel = (new BpmnJsonConverter()).convertToBpmnModel(jsonNode);
+            } else {
+                // 新的 XML 格式
+                BpmnXMLConverter xmlConverter = new BpmnXMLConverter();
+                java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(modelData);
+                javax.xml.stream.XMLInputFactory factory = javax.xml.stream.XMLInputFactory.newInstance();
+                javax.xml.stream.XMLStreamReader reader = factory.createXMLStreamReader(inputStream);
+                bpmnModel = xmlConverter.convertToBpmnModel(reader);
+            }
+
+            // 检查模型是否有错误
+            if (bpmnModel.getErrors() != null && !bpmnModel.getErrors().isEmpty()) {
+                return AjaxResult.error("模型有错误: " + bpmnModel.getErrors().values());
+            }
+
+            // 检查是否有流程
+            if (bpmnModel.getProcesses() == null || bpmnModel.getProcesses().isEmpty()) {
+                return AjaxResult.error("模型中没有流程定义");
+            }
+
+            // 获取流程定义的 key（流程ID）
+            String processKey = bpmnModel.getProcesses().get(0).getId();
+
+            // 检查流程ID是否与模型key一致
+            if (!processKey.equals(model.getKey())) {
+                // 检查流程ID是否已被其他模型或已部署流程使用
+                long deployedCount = repositoryService.createProcessDefinitionQuery()
+                        .processDefinitionKey(processKey)
+                        .count();
+                if (deployedCount > 0) {
+                    return AjaxResult.error("流程ID '" + processKey + "' 已被已部署的流程使用，请修改流程ID或使用新模型");
+                }
+
+                // 检查是否有其他模型使用了相同的key
+                List<Model> otherModels = repositoryService.createModelQuery()
+                        .modelKey(processKey)
+                        .list();
+                for (Model otherModel : otherModels) {
+                    if (!otherModel.getId().equals(modelId)) {
+                        return AjaxResult.error("流程ID '" + processKey + "' 已被其他模型使用，请修改流程ID");
+                    }
+                }
+            }
+
+            Deployment deploy = repositoryService.createDeployment()
+                    .category(model.getCategory())
+                    .name(model.getName())
+                    .key(model.getKey())
                     .addBpmnModel(model.getKey() + ".bpmn20.xml", bpmnModel)
                     .deploy();
+
             model.setDeploymentId(deploy.getId());
             repositoryService.saveModel(model);
-            return AjaxResult.success();
+
+            return AjaxResult.success("发布成功，部署ID: " + deploy.getId());
         } catch (Exception e) {
             e.printStackTrace();
-            return AjaxResult.error("流程图不合规范，请重新设计");
+            return AjaxResult.error("发布失败: " + e.getMessage());
         }
     }
 
@@ -151,14 +224,36 @@ public class ModelManageController extends BaseController {
     @GetMapping("/export/{modelId}")
     public void modelExport(@PathVariable String modelId, HttpServletResponse response) throws IOException {
         byte[] modelData = repositoryService.getModelEditorSource(modelId);
-        JsonNode jsonNode = objectMapper.readTree(modelData);
-        BpmnModel bpmnModel = (new BpmnJsonConverter()).convertToBpmnModel(jsonNode);
-        byte[] xmlBytes = (new BpmnXMLConverter()).convertToXML(bpmnModel, "UTF-8");
+        String modelContent = new String(modelData, java.nio.charset.StandardCharsets.UTF_8);
+
+        BpmnModel bpmnModel;
+        byte[] xmlBytes;
+
+        // 检测格式：JSON 还是 XML
+        if (modelContent.trim().startsWith("{")) {
+            // 旧的 JSON 格式，需要转换为 XML
+            JsonNode jsonNode = objectMapper.readTree(modelData);
+            bpmnModel = (new BpmnJsonConverter()).convertToBpmnModel(jsonNode);
+            xmlBytes = (new BpmnXMLConverter()).convertToXML(bpmnModel, "UTF-8");
+        } else {
+            // 已经是 XML 格式，直接使用
+            xmlBytes = modelData;
+            // 解析以获取文件名
+            BpmnXMLConverter xmlConverter = new BpmnXMLConverter();
+            java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(modelData);
+            javax.xml.stream.XMLInputFactory factory = javax.xml.stream.XMLInputFactory.newInstance();
+            try {
+                javax.xml.stream.XMLStreamReader reader = factory.createXMLStreamReader(inputStream);
+                bpmnModel = xmlConverter.convertToBpmnModel(reader);
+            } catch (Exception e) {
+                throw new IOException("解析 BPMN XML 失败", e);
+            }
+        }
+
         ByteArrayInputStream in = new ByteArrayInputStream(xmlBytes);
         String filename = bpmnModel.getMainProcess().getId() + ".bpmn20.xml";
         response.setHeader("Content-Disposition","attachment;filename=" + filename);
         response.setHeader("content-Type", "application/xml");
-//        response.flushBuffer();
         IOUtils.copy(in, response.getOutputStream());
     }
 
