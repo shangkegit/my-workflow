@@ -12,9 +12,9 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
+import org.activiti.bpmn.converter.BpmnXMLConverter;
 import org.activiti.bpmn.model.BpmnModel;
 import org.activiti.editor.constants.ModelDataJsonConstants;
-import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.*;
 import org.activiti.engine.repository.*;
 import org.activiti.image.ProcessDiagramGenerator;
@@ -157,7 +157,8 @@ public class FlowController extends BaseController {
     public String exchangeProcessToModel(@PathVariable("pdid") String pdid, HttpServletResponse response) throws Exception {
         ProcessDefinition definition = repositoryService.createProcessDefinitionQuery().processDefinitionId(pdid).singleResult();
         BpmnModel bpmnModel = repositoryService.getBpmnModel(definition.getId());
-        ObjectNode objectNode = new BpmnJsonConverter().convertToJson(bpmnModel);
+        // 使用 BpmnXMLConverter 转换为 XML 格式
+        byte[] xmlBytes = new BpmnXMLConverter().convertToXML(bpmnModel, "UTF-8");
         Model modelData = repositoryService.newModel();
         modelData.setKey(definition.getKey());
         modelData.setName(definition.getName());
@@ -180,9 +181,9 @@ public class FlowController extends BaseController {
         modelData.setDeploymentId(definition.getDeploymentId());
         // 保存新模型
         repositoryService.saveModel(modelData);
-        // 保存模型json
-        repositoryService.addModelEditorSource(modelData.getId(), objectNode.toString().getBytes(StandardCharsets.UTF_8));
-        return objectNode.toString();
+        // 保存模型 XML
+        repositoryService.addModelEditorSource(modelData.getId(), xmlBytes);
+        return new String(xmlBytes, StandardCharsets.UTF_8);
     }
 
     @ApiOperation("挂起一个流程定义")

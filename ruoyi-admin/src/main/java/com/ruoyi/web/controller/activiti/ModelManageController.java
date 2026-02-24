@@ -114,18 +114,10 @@ public class ModelManageController extends BaseController {
 
         // 保存模型到act_re_model表
         repositoryService.saveModel(model);
-        HashMap<String, Object> content = new HashMap();
-        content.put("resourceId", model.getId());
-        HashMap<String, String> properties = new HashMap();
-        properties.put("process_id", key);
-        properties.put("name", modelRequest.getName());
-        properties.put("category", modelRequest.getCategory());
-        content.put("properties", properties);
-        HashMap<String, String> stencilset = new HashMap();
-        stencilset.put("namespace", "http://b3mn.org/stencilset/bpmn2.0#");
-        content.put("stencilset", stencilset);
+        // 创建空的 BPMN 2.0 XML 模板
+        String bpmnXml = createEmptyBpmnXml(key, modelRequest.getName(), modelRequest.getCategory());
         // 保存模型文件到act_ge_bytearray表
-        repositoryService.addModelEditorSource(model.getId(), objectMapper.writeValueAsBytes(content));
+        repositoryService.addModelEditorSource(model.getId(), bpmnXml.getBytes(StandardCharsets.UTF_8));
         return AjaxResult.success(model);
     }
 
@@ -218,6 +210,46 @@ public class ModelManageController extends BaseController {
     public AjaxResult removeModel(@PathVariable String modelId) {
         repositoryService.deleteModel(modelId);
         return AjaxResult.success("删除成功");
+    }
+
+    /**
+     * 创建空的 BPMN 2.0 XML 模板
+     *
+     * @param processId   流程ID
+     * @param processName 流程名称
+     * @param category    分类
+     * @return BPMN 2.0 XML 字符串
+     */
+    private String createEmptyBpmnXml(String processId, String processName, String category) {
+        StringBuilder xml = new StringBuilder();
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xml.append("<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" ");
+        xml.append("xmlns:bpmndi=\"http://www.omg.org/spec/BPMN/20100524/DI\" ");
+        xml.append("xmlns:dc=\"http://www.omg.org/spec/DD/20100524/DC\" ");
+        xml.append("xmlns:di=\"http://www.omg.org/spec/DD/20100524/DI\" ");
+        xml.append("xmlns:activiti=\"http://activiti.org/bpmn\" ");
+        xml.append("xmlns:modeler=\"http://activiti.org/modeler\" ");
+        xml.append("targetNamespace=\"http://activiti.org/bpmn\">\n");
+        xml.append("  <bpmn:process id=\"").append(escapeXml(processId)).append("\" ");
+        xml.append("name=\"").append(escapeXml(processName)).append("\" ");
+        xml.append("isExecutable=\"true\">\n");
+        xml.append("  </bpmn:process>\n");
+        xml.append("</bpmn:definitions>");
+        return xml.toString();
+    }
+
+    /**
+     * 转义 XML 特殊字符
+     */
+    private String escapeXml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\"", "&quot;")
+                   .replace("'", "&apos;");
     }
 
     @ApiOperation("导出模型")
