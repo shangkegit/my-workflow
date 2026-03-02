@@ -110,8 +110,7 @@
 
 <script>
 import TableTemplate from "@/components/TableTemplate";
-import {getMeetingList, addMeeting, deleteMeeting, exportMeeting} from "./api/meeting";
-import {listUser} from "@/api/system/user.js"
+import {getMeetingList, addMeeting, deleteMeeting, exportMeeting, getCandidateUsers} from "./api/meeting";
 export default {
     name: "leaveApply",
     components: {
@@ -154,9 +153,9 @@ export default {
     },
     mounted() {
         this.getMeetingListAndRender(this.searchParams);
-        listUser().then(res => {
-            console.log("获取用户", res);
-            this.userList = res.rows;
+        getCandidateUsers().then(res => {
+            console.log("获取候选用户", res);
+            this.userList = res.data || [];
         });
     },
     methods: {

@@ -124,8 +124,7 @@
 
 <script>
 import TableTemplate from "@/components/TableTemplate";
-import {getPurchaseApplyList, addPurchase, deletePurchase, exportPurchase} from "./api/purchase.js";
-import {listUser} from "@/api/system/user.js"
+import {getPurchaseApplyList, addPurchase, deletePurchase, exportPurchase, getCandidateUsers} from "./api/purchase.js";
 // itemlist: 笔
 // total: 100
 // applyer: admin
@@ -146,10 +145,10 @@ export default {
                 itemlist: "",
                 total: "",
                 applyer: this.$store.state.user.name,
-                purchasemanager: "admin",
-                financeName: "admin",
-                pay: "admin",
-                managerName: "admin",
+                purchasemanager: "",
+                financeName: "",
+                pay: "",
+                managerName: "",
             },
             searchParams: {
                 range: [],
@@ -174,9 +173,17 @@ export default {
     },
     mounted() {
         this.getPurchaseApplyListAndRender(this.searchParams);
-         listUser().then(res => {
-            console.log("获取用户", res);
-            this.userList = res.rows;
+        getCandidateUsers().then(res => {
+            console.log("获取候选用户", res);
+            this.userList = res.data || [];
+            // 默认选择第一个用户
+            if (this.userList.length > 0) {
+                const firstUser = this.userList[0].userName;
+                this.form.purchasemanager = firstUser;
+                this.form.financeName = firstUser;
+                this.form.pay = firstUser;
+                this.form.managerName = firstUser;
+            }
         });
     },
     methods: {

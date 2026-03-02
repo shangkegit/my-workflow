@@ -203,8 +203,9 @@ export default {
             this.getListAndRenderByParams(this.searchParams)
         },
         handleDefinition(index, row) {
-            const {deploymentId, resourceName} = row;
-            const path = `/flow/manage/showProcessDefinition/${deploymentId}/${resourceName}`
+            const {id} = row;
+            // 使用流程定义ID获取BPMN XML
+            const path = `/flow/manage/showProcessDefinition/${id}`
             commonHelper.openWindow(path);
         },
         handleProcess(index, row) {

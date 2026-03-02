@@ -141,14 +141,17 @@ public class FlowController extends BaseController {
     }
 
     @ApiOperation("查看工作流定义")
-    @RequestMapping(value = "/showProcessDefinition/{pdid}/{resource}", method = RequestMethod.GET)
-    public void showProcessDefinition(@PathVariable("pdid") String pdid, @PathVariable(value="resource") String resource,
+    @RequestMapping(value = "/showProcessDefinition/{pdid}", method = RequestMethod.GET)
+    public void showProcessDefinition(@PathVariable("pdid") String pdid,
                        HttpServletResponse response) throws Exception {
         response.setContentType("application/xml");
         response.setHeader("Content-Disposition","inline;filename=process.bpmn20.xml");
-        InputStream is = repositoryService.getResourceAsStream(pdid, resource);
+        // 使用 processDefinitionId 获取 BpmnModel，然后转换为 XML
+        BpmnModel bpmnModel = repositoryService.getBpmnModel(pdid);
+        byte[] xmlBytes = new BpmnXMLConverter().convertToXML(bpmnModel, "UTF-8");
         ServletOutputStream output = response.getOutputStream();
-        IOUtils.copy(is, output);
+        output.write(xmlBytes);
+        output.flush();
     }
 
     @ApiOperation("将流程定义转为模型")

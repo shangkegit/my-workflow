@@ -48,3 +48,12 @@ export const deleteLeave = data => {
         data: fd
     });
 }
+
+// 获取流程候选用户列表（无需特殊权限）
+export const getCandidateUsers = (deptId) => {
+    return request({
+        url: '/task/manage/candidateUsers',
+        method: 'get',
+        params: { deptId }
+    });
+}

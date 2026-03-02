@@ -100,9 +100,9 @@
                 <el-form-item label="部门领导">
                     <el-select v-model="form.deptleader">
                         <el-option
-                            v-for="(user, i) in userList" 
+                            v-for="(user, i) in userList"
                             :key="i"
-                            :label="user.userName"
+                            :label="user.userName + (user.deptName ? '(' + user.deptName + ')' : '')"
                             :value="user.userName"
                         ></el-option>
                     </el-select>
@@ -125,8 +125,7 @@
 // reason: 123
 // deptleader: admin
 import TableTemplate from "@/components/TableTemplate";
-import {getLeaveApplyList, addLeave, deleteLeave, exportLeave} from "./api/leaveApply";
-import {listUser} from "@/api/system/user.js"
+import {getLeaveApplyList, addLeave, deleteLeave, exportLeave, getCandidateUsers} from "./api/leaveApply";
 
 export default {
     name: "leaveApply",
@@ -150,7 +149,7 @@ export default {
                 startTime: "",
                 endTime: "",
                 reason: "",
-                deptleader: "admin"
+                deptleader: ""
             },
             currentSelection: [],
             userList: []
@@ -169,9 +168,14 @@ export default {
     },
     mounted() {
         this.getLeaveApplyListAndRender(this.searchParams)
-        listUser().then(res => {
-            console.log("获取用户", res);
-            this.userList = res.rows;
+        // 使用候选用户接口（无需特殊权限）
+        getCandidateUsers().then(res => {
+            console.log("获取候选用户", res);
+            this.userList = res.data || [];
+            // 默认选择第一个用户
+            if (this.userList.length > 0) {
+                this.form.deptleader = this.userList[0].userName;
+            }
         });
     },
     methods: {

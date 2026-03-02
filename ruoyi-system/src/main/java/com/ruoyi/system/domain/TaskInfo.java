@@ -28,6 +28,9 @@ public class TaskInfo {
 
 	String formKey;
 
+	/** 任务定义Key（用于标识当前是哪个步骤） */
+	String taskDefKey;
+
 	String comment;
 
 	Integer pageSize;
@@ -120,6 +123,14 @@ public class TaskInfo {
 
 	public void setFormKey(String formKey) {
 		this.formKey = formKey;
+	}
+
+	public String getTaskDefKey() {
+		return taskDefKey;
+	}
+
+	public void setTaskDefKey(String taskDefKey) {
+		this.taskDefKey = taskDefKey;
 	}
 
 	public Integer getPageSize() {

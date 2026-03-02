@@ -128,9 +128,8 @@ export default {
             console.log("todo", row);
             const {formKey, taskId, businessKey} = row;
             this.$router.push({
-                path: `/process/${formKey}/${taskId}?id=${businessKey}`,
-                meta: { title: "测试" },
-                params: {row}
+                path: `/process/${formKey}/${taskId}`,
+                query: { id: businessKey }
             })
         }
     },

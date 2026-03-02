@@ -8,6 +8,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.framework.web.domain.server.Sys;
 import com.ruoyi.system.domain.TaskInfo;
+import com.ruoyi.system.service.ISysUserService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.engine.FormService;
@@ -20,6 +21,7 @@ import org.activiti.engine.task.Comment;
 import org.activiti.engine.task.Task;
 import org.activiti.engine.task.TaskQuery;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,6 +47,9 @@ public class TaskController extends BaseController {
 
     @Resource
     private HistoryService historyService;
+
+    @Autowired
+    private ISysUserService userService;
 
     private String prefix = "activiti/task";
 
@@ -86,6 +91,7 @@ public class TaskController extends BaseController {
             info.setTaskId(a.getId());
             String formKey = formService.getTaskFormData(a.getId()).getFormKey();
             info.setFormKey(formKey);
+            info.setTaskDefKey(a.getTaskDefinitionKey());
             tasks.add(info);
         });
         TableDataInfo rspData = new TableDataInfo();
@@ -96,9 +102,10 @@ public class TaskController extends BaseController {
     }
 
     /**
-     * 查询所有待办任务列表
+     * 查询所有待办任务列表（仅管理员可访问）
      */
     @ApiOperation("查询所有待办任务列表")
+    @PreAuthorize("@ss.hasPermi('activiti:task:alllist')")
     @PostMapping("/alllist")
     @ResponseBody
     public TableDataInfo alllist(TaskInfo param)
@@ -130,6 +137,7 @@ public class TaskController extends BaseController {
             info.setTaskId(a.getId());
             String formKey = formService.getTaskFormData(a.getId()).getFormKey();
             info.setFormKey(formKey);
+            info.setTaskDefKey(a.getTaskDefinitionKey());
             tasks.add(info);
         });
         TableDataInfo rspData = new TableDataInfo();
@@ -196,5 +204,31 @@ public class TaskController extends BaseController {
             infos.add(info);
         });
         return infos;
+    }
+
+    /**
+     * 获取流程候选用户列表（无需特殊权限，用于下拉选择）
+     * @param deptId 部门ID（可选，不传则返回所有用户）
+     */
+    @ApiOperation("获取流程候选用户列表")
+    @GetMapping("/candidateUsers")
+    @ResponseBody
+    public AjaxResult candidateUsers(@RequestParam(required = false) Long deptId) {
+        SysUser queryUser = new SysUser();
+        queryUser.setStatus("0"); // 只查正常状态的用户
+        if (deptId != null) {
+            queryUser.setDeptId(deptId);
+        }
+        List<SysUser> users = userService.selectUserList(queryUser);
+        // 只返回必要的信息
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (SysUser user : users) {
+            Map<String, Object> item = new java.util.HashMap<>();
+            item.put("userName", user.getUserName());
+            item.put("nickName", user.getNickName());
+            item.put("deptName", user.getDept() != null ? user.getDept().getDeptName() : "");
+            result.add(item);
+        }
+        return AjaxResult.success(result);
     }
 }
