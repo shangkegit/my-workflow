@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workflow.module.mapper.WfProcessModuleMapper">
+    
+    <resultMap type="WfProcessModule" id="WfProcessModuleResult">
+        <id     property="id"           column="id"             />
+        <result property="moduleId"     column="module_id"      />
+        <result property="moduleName"   column="module_name"    />
+        <result property="processKey"   column="process_key"    />
+        <result property="version"      column="version"        />
+        <result property="author"       column="author"         />
+        <result property="description"  column="description"    />
+        <result property="status"       column="status"         />
+        <result property="deploySource" column="deploy_source"  />
+        <result property="configJson"   column="config_json"    />
+        <result property="bpmnXml"      column="bpmn_xml"       />
+        <result property="deployTime"   column="deploy_time"    />
+        <result property="deployBy"     column="deploy_by"      />
+        <result property="remark"       column="remark"         />
+        <result property="createTime"   column="create_time"    />
+        <result property="updateTime"   column="update_time"    />
+    </resultMap>
+    
+    <sql id="selectWfProcessModuleVo">
+        select id, module_id, module_name, process_key, version, author, description, 
+               status, deploy_source, config_json, bpmn_xml, deploy_time, deploy_by, 
+               remark, create_time, update_time
+        from wf_process_module
+    </sql>
+    
+    <select id="selectWfProcessModuleList" parameterType="WfProcessModule" resultMap="WfProcessModuleResult">
+        <include refid="selectWfProcessModuleVo"/>
+        <where>
+            <if test="moduleId != null and moduleId != ''">
+                AND module_id like concat('%', #{moduleId}, '%')
+            </if>
+            <if test="moduleName != null and moduleName != ''">
+                AND module_name like concat('%', #{moduleName}, '%')
+            </if>
+            <if test="processKey != null and processKey != ''">
+                AND process_key = #{processKey}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by deploy_time desc
+    </select>
+    
+    <select id="selectWfProcessModuleById" parameterType="Long" resultMap="WfProcessModuleResult">
+        <include refid="selectWfProcessModuleVo"/>
+        where id = #{id}
+    </select>
+    
+    <select id="selectWfProcessModuleByProcessKey" parameterType="String" resultMap="WfProcessModuleResult">
+        <include refid="selectWfProcessModuleVo"/>
+        where process_key = #{processKey}
+    </select>
+    
+    <insert id="insertWfProcessModule" parameterType="WfProcessModule" useGeneratedKeys="true" keyProperty="id">
+        insert into wf_process_module
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="moduleId != null and moduleId != ''">module_id,</if>
+            <if test="moduleName != null and moduleName != ''">module_name,</if>
+            <if test="processKey != null and processKey != ''">process_key,</if>
+            <if test="version != null and version != ''">version,</if>
+            <if test="author != null and author != ''">author,</if>
+            <if test="description != null">description,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="deploySource != null and deploySource != ''">deploy_source,</if>
+            <if test="configJson != null">config_json,</if>
+            <if test="bpmnXml != null">bpmn_xml,</if>
+            <if test="deployTime != null">deploy_time,</if>
+            <if test="deployBy != null and deployBy != ''">deploy_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="moduleId != null and moduleId != ''">#{moduleId},</if>
+            <if test="moduleName != null and moduleName != ''">#{moduleName},</if>
+            <if test="processKey != null and processKey != ''">#{processKey},</if>
+            <if test="version != null and version != ''">#{version},</if>
+            <if test="author != null and author != ''">#{author},</if>
+            <if test="description != null">#{description},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="deploySource != null and deploySource != ''">#{deploySource},</if>
+            <if test="configJson != null">#{configJson},</if>
+            <if test="bpmnXml != null">#{bpmnXml},</if>
+            <if test="deployTime != null">#{deployTime},</if>
+            <if test="deployBy != null and deployBy != ''">#{deployBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+        </trim>
+    </insert>
+    
+    <update id="updateWfProcessModule" parameterType="WfProcessModule">
+        update wf_process_module
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="moduleId != null and moduleId != ''">module_id = #{moduleId},</if>
+            <if test="moduleName != null and moduleName != ''">module_name = #{moduleName},</if>
+            <if test="version != null and version != ''">version = #{version},</if>
+            <if test="author != null and author != ''">author = #{author},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="deploySource != null and deploySource != ''">deploy_source = #{deploySource},</if>
+            <if test="configJson != null">config_json = #{configJson},</if>
+            <if test="bpmnXml != null">bpmn_xml = #{bpmnXml},</if>
+            <if test="deployBy != null and deployBy != ''">deploy_by = #{deployBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{id}
+    </update>
+    
+    <delete id="deleteWfProcessModuleById" parameterType="Long">
+        delete from wf_process_module where id = #{id}
+    </delete>
+    
+    <delete id="deleteWfProcessModuleByProcessKey" parameterType="String">
+        delete from wf_process_module where process_key = #{processKey}
+    </delete>
+    
+    <delete id="deleteWfProcessModuleByIds" parameterType="String">
+        delete from wf_process_module where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
