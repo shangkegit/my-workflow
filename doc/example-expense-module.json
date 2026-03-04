@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "id": "expense-module",
+    "name": "费用报销流程模块",
+    "processKey": "expense",
+    "version": "1.0.0",
+    "author": "admin",
+    "description": "员工费用报销审批流程，支持多级审批"
+  },
+  "tasks": {
+    "submitExpense": {
+      "name": "提交报销",
+      "formKey": "expense/submit",
+      "handler": "scripts/submitExpense.groovy"
+    },
+    "deptLeaderApprove": {
+      "name": "部门领导审批",
+      "formKey": "expense/deptLeaderApprove",
+      "handler": "scripts/deptLeaderApprove.groovy"
+    },
+    "financeReview": {
+      "name": "财务审核",
+      "formKey": "expense/financeReview",
+      "handler": "scripts/financeReview.groovy"
+    },
+    "cashierPayment": {
+      "name": "出纳付款",
+      "formKey": "expense/cashierPayment",
+      "handler": "scripts/cashierPayment.groovy"
+    }
+  },
+  "scripts": {
+    "submitExpense.groovy": "// 提交报销处理逻辑\nlog.info('处理报销提交: businessKey={}', businessKey);\nresult.put('success', true);\nresult.put('message', '报销已提交');",
+    
+    "deptLeaderApprove.groovy": "// 部门领导审批逻辑\nlog.info('部门领导审批: taskId={}', taskId);\nif (variables.get('approved') == true) {\n    result.put('success', true);\n    result.put('message', '审批通过');\n} else {\n    result.put('success', true);\n    result.put('action', 'reject');\n}",
+    
+    "financeReview.groovy": "// 财务审核逻辑\nlog.info('财务审核: businessKey={}', businessKey);\nresult.put('success', true);",
+    
+    "cashierPayment.groovy": "// 出纳付款逻辑\nlog.info('出纳付款: taskId={}', taskId);\nresult.put('success', true);\nresult.put('message', '付款完成');"
+  },
+  "forms": {
+    "submitExpense": {
+      "fields": [
+        {"name": "amount", "label": "报销金额", "type": "number", "required": true},
+        {"name": "category", "label": "报销类型", "type": "select", "options": ["差旅费", "办公用品", "招待费", "其他"]},
+        {"name": "description", "label": "报销说明", "type": "textarea", "required": true},
+        {"name": "attachments", "label": "附件", "type": "file", "multiple": true}
+      ]
+    },
+    "deptLeaderApprove": {
+      "fields": [
+        {"name": "approved", "label": "审批结果", "type": "radio", "options": ["通过", "驳回"], "required": true},
+        {"name": "comment", "label": "审批意见", "type": "textarea"}
+      ]
+    },
+    "financeReview": {
+      "fields": [
+        {"name": "verified", "label": "核对结果", "type": "radio", "options": ["核对通过", "需要修改"]},
+        {"name": "comment", "label": "核对意见", "type": "textarea"}
+      ]
+    },
+    "cashierPayment": {
+      "fields": [
+        {"name": "paymentMethod", "label": "付款方式", "type": "select", "options": ["银行转账", "现金", "支付宝", "微信"]},
+        {"name": "paymentAccount", "label": "收款账号", "type": "text"},
+        {"name": "paymentTime", "label": "付款时间", "type": "datetime"}
+      ]
+    }
+  },
+  "entities": {
+    "ExpenseApply": {
+      "tableName": "wf_expense_apply",
+      "fields": [
+        {"name": "id", "type": "bigint", "primary": true, "autoIncrement": true},
+        {"name": "applyNo", "type": "varchar(50)", "comment": "报销单号"},
+        {"name": "userId", "type": "varchar(64)", "comment": "申请人ID"},
+        {"name": "amount", "type": "decimal(10,2)", "comment": "报销金额"},
+        {"name": "category", "type": "varchar(50)", "comment": "报销类型"},
+        {"name": "description", "type": "varchar(500)", "comment": "报销说明"},
+        {"name": "status", "type": "varchar(20)", "comment": "状态"},
+        {"name": "createTime", "type": "datetime", "comment": "创建时间"}
+      ]
+    }
+  }
+}
