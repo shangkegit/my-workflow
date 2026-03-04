@@ -10,7 +10,9 @@ import com.ruoyi.workflow.module.ProcessModuleRegistry;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.engine.FormService;
+import org.activiti.engine.RepositoryService;
 import org.activiti.engine.TaskService;
+import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -41,6 +43,19 @@ public class UnifiedModuleController extends BaseController {
 
     @Autowired
     private FormService formService;
+    
+    @Autowired
+    private RepositoryService repositoryService;
+    
+    /**
+     * 从任务获取流程定义Key
+     */
+    private String getProcessDefinitionKey(Task task) {
+        ProcessDefinition pd = repositoryService.createProcessDefinitionQuery()
+            .processDefinitionId(task.getProcessDefinitionId())
+            .singleResult();
+        return pd != null ? pd.getKey() : null;
+    }
 
     /**
      * 获取所有已注册的模块列表
@@ -90,7 +105,7 @@ public class UnifiedModuleController extends BaseController {
             return AjaxResult.error("任务不存在");
         }
 
-        String processDefinitionKey = task.getProcessDefinitionKey();
+        String processDefinitionKey = getProcessDefinitionKey(task);
         String taskDefinitionKey = task.getTaskDefinitionKey();
         String businessKey = getBusinessKey(task.getProcessInstanceId());
 
@@ -130,7 +145,7 @@ public class UnifiedModuleController extends BaseController {
             return AjaxResult.error("任务不存在");
         }
 
-        String processDefinitionKey = task.getProcessDefinitionKey();
+        String processDefinitionKey = getProcessDefinitionKey(task);
         String taskDefinitionKey = task.getTaskDefinitionKey();
         String businessKey = getBusinessKey(task.getProcessInstanceId());
 
