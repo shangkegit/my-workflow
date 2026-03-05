@@ -1,9 +1,12 @@
 package com.ruoyi.web.controller.workflow;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.system.service.WorkflowSuspendNotificationService;
 import com.ruoyi.workflow.module.ProcessModule;
 import com.ruoyi.workflow.module.ProcessModuleLoader;
 import com.ruoyi.workflow.module.ProcessModuleMeta;
@@ -42,6 +45,9 @@ public class ModuleManageController extends BaseController {
 
     @Autowired
     private ProcessModuleLoader loader;
+
+    @Autowired(required = false)
+    private WorkflowSuspendNotificationService notificationService;
 
     // 模块存储目录
     private static final String MODULE_DIR = "/data/workflow/modules";
@@ -120,11 +126,28 @@ public class ModuleManageController extends BaseController {
     @PreAuthorize("@ss.hasPermi('workflow:module:edit')")
     @Log(title = "暂停流程模块", businessType = BusinessType.UPDATE)
     @PostMapping("/suspend/{processKey}")
-    public AjaxResult suspendModule(@PathVariable String processKey) {
+    public AjaxResult suspendModule(@PathVariable String processKey,
+                                    @RequestParam(required = false) String reason) {
         if (!registry.exists(processKey)) {
             return AjaxResult.error("模块不存在");
         }
+        
+        // 获取流程信息（用于通知）
+        ProcessModuleMeta meta = registry.getMeta(processKey);
+        String processName = meta != null ? meta.getName() : processKey;
+        
+        // 执行停用
         registry.suspend(processKey);
+        
+        // 发送通知（异步）
+        if (notificationService != null) {
+            try {
+                notificationService.notifyOnSuspendAsync(processKey, processName, reason);
+            } catch (Exception e) {
+                logger.warn("发送停用通知失败: {}", e.getMessage());
+            }
+        }
+        
         return AjaxResult.success("模块已暂停");
     }
 
