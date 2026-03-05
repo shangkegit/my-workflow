@@ -144,4 +144,41 @@ xss:
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
 
+# 邮件配置
+spring.mail:
+  # SMTP服务器地址
+  host: smtp.example.com
+  # SMTP端口
+  port: 465
+  # 发件人邮箱（用户名）
+  username: noreply@example.com
+  # 邮箱密码或授权码
+  password: your-password-here
+  # 协议
+  protocol: smtp
+  # 默认编码
+  default-encoding: UTF-8
+  # SMTP相关属性
+  properties:
+    mail:
+      smtp:
+        auth: true
+        starttls:
+          enable: true
+          required: true
+        ssl:
+          enable: true
+        socketFactory:
+          class: javax.net.ssl.SSLSocketFactory
+          port: 465
+
+# 自定义邮件配置
+mail:
+  # 邮件功能开关（true启用，false禁用）
+  enabled: false
+  # 管理员邮箱（多个用逗号分隔）
+  admin-email: admin@example.com
+  # 发件人显示地址（可选，不配置则使用 spring.mail.username）
+  from: noreply@example.com
+
 

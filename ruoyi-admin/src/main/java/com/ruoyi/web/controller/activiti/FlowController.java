@@ -10,6 +10,8 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.system.service.ISysUserService;
+import com.ruoyi.web.service.MailService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
@@ -17,8 +19,11 @@ import org.activiti.bpmn.model.BpmnModel;
 import org.activiti.editor.constants.ModelDataJsonConstants;
 import org.activiti.engine.*;
 import org.activiti.engine.repository.*;
+import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.image.ProcessDiagramGenerator;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -33,6 +38,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -42,6 +48,8 @@ import java.util.zip.ZipInputStream;
 @Controller
 @RequestMapping("/flow/manage")
 public class FlowController extends BaseController {
+
+    private static final Logger log = LoggerFactory.getLogger(FlowController.class);
 
     @Resource
     private RuntimeService runtimeService;
@@ -57,6 +65,12 @@ public class FlowController extends BaseController {
 
     @Resource
     IdentityService identityService;
+
+    @Resource
+    private MailService mailService;
+
+    @Resource
+    private ISysUserService userService;
 
 
     @ApiOperation("上传一个工作流文件")
@@ -194,13 +208,72 @@ public class FlowController extends BaseController {
     @ResponseBody
     public AjaxResult suspendProcessDefinition(@RequestParam("pdid") String pdid, @RequestParam("flag") Boolean flag,
                                                @RequestParam(value="date", required = false) String date) throws Exception {
+        // 1. 查询流程定义信息
+        ProcessDefinition pd = repositoryService.createProcessDefinitionQuery()
+                .processDefinitionId(pdid)
+                .singleResult();
+
+        if (pd == null) {
+            return AjaxResult.error("流程定义不存在");
+        }
+
+        // 2. 查询受影响的在途流程实例（在挂起之前查询）
+        List<ProcessInstance> instances = runtimeService.createProcessInstanceQuery()
+                .processDefinitionId(pdid)
+                .active() // 只查询活动状态的实例
+                .list();
+
+        // 3. 执行挂起操作
         if (StringUtils.isNotEmpty(date)) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            repositoryService.suspendProcessDefinitionById(pdid, flag,  sdf.parse(date));
+            repositoryService.suspendProcessDefinitionById(pdid, flag, sdf.parse(date));
         } else {
             repositoryService.suspendProcessDefinitionById(pdid, flag, null);
         }
+
+        // 4. 发送邮件通知（异步，失败不影响主流程）
+        if (instances.size() > 0) {
+            try {
+                sendSuspendNotifications(pd, instances);
+            } catch (Exception e) {
+                log.error("发送流程停用通知失败: {}", e.getMessage(), e);
+            }
+        }
+
         return AjaxResult.success();
+    }
+
+    /**
+     * 发送流程停用通知
+     *
+     * @param pd 流程定义
+     * @param instances 受影响的流程实例列表
+     */
+    private void sendSuspendNotifications(ProcessDefinition pd, List<ProcessInstance> instances) {
+        // 1. 发送管理员通知
+        mailService.sendSuspendNoticeToAdmin(pd, instances);
+
+        // 2. 按申请人分组
+        Map<String, List<ProcessInstance>> groupByApplicant = instances.stream()
+                .filter(pi -> pi.getStartUserId() != null)
+                .collect(Collectors.groupingBy(ProcessInstance::getStartUserId));
+
+        // 3. 发送申请人通知
+        for (Map.Entry<String, List<ProcessInstance>> entry : groupByApplicant.entrySet()) {
+            String userName = entry.getKey();
+            List<ProcessInstance> userInstances = entry.getValue();
+
+            // 查询用户邮箱
+            SysUser user = userService.selectUserByUserName(userName);
+            if (user != null && StringUtils.isNotEmpty(user.getEmail())) {
+                mailService.sendSuspendNoticeToApplicant(
+                        user.getNickName() != null ? user.getNickName() : userName,
+                        user.getEmail(),
+                        pd.getName(),
+                        userInstances
+                );
+            }
+        }
     }
 
     @ApiOperation("激活一个流程定义")
