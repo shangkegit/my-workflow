@@ -6,6 +6,8 @@ import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.system.service.ISysMailService;
 import com.ruoyi.workflow.module.ProcessModule;
 import com.ruoyi.workflow.module.ProcessModuleLoader;
 import com.ruoyi.workflow.module.ProcessModuleMeta;
@@ -44,6 +46,9 @@ public class ModuleManageController extends BaseController {
 
     @Autowired
     private ProcessModuleLoader loader;
+
+    @Autowired
+    private ISysMailService mailService;
 
     // 模块存储目录
     private static final String MODULE_DIR = "/data/workflow/modules";
@@ -126,7 +131,30 @@ public class ModuleManageController extends BaseController {
         if (!registry.exists(processKey)) {
             return AjaxResult.error("模块不存在");
         }
+        
+        // 获取模块信息
+        ProcessModuleMeta meta = registry.getMeta(processKey);
+        String processName = meta != null ? meta.getName() : processKey;
+        
+        // 获取当前操作人
+        String operator = "系统";
+        try {
+            operator = SecurityUtils.getUsername();
+        } catch (Exception e) {
+            // 获取不到用户名时使用默认值
+        }
+        
+        // 暂停模块
         registry.suspend(processKey);
+        
+        // 发送邮件通知给管理员
+        try {
+            mailService.sendProcessSuspendNotification(processName, processKey, operator);
+        } catch (Exception e) {
+            logger.error("发送流程停用通知邮件失败", e);
+            // 邮件发送失败不影响主流程
+        }
+        
         return AjaxResult.success("模块已暂停");
     }
 
