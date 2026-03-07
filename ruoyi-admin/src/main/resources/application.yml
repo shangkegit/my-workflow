@@ -58,6 +58,22 @@ spring:
     basename: i18n/messages
   profiles:
     active: druid
+  # 邮件服务配置
+  mail:
+    host: smtp.example.com
+    port: 465
+    username: noreply@example.com
+    password: ${MAIL_PASSWORD:changeme}
+    protocol: smtps
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          ssl:
+            enable: true
   # 文件上传
   servlet:
     multipart:

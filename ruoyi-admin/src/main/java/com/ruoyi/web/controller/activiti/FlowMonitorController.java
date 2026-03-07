@@ -2,11 +2,14 @@ package com.ruoyi.web.controller.activiti;
 
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.bean.BeanUtils;
+import com.ruoyi.common.utils.mail.MailService;
 import com.ruoyi.system.domain.*;
 import com.ruoyi.system.mapper.ActRuExecutionMapper;
+import com.ruoyi.system.service.ISysUserService;
 import com.ruoyi.web.util.ActivitiTracingChart;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -68,6 +71,12 @@ public class FlowMonitorController extends BaseController {
 
     @Resource
     ActRuExecutionMapper actRuExecutionMapper;
+
+    @Resource
+    private MailService mailService;
+
+    @Resource
+    private ISysUserService userService;
 
 
     private String prefix = "activiti/monitor";
@@ -268,8 +277,73 @@ public class FlowMonitorController extends BaseController {
     @ApiOperation("挂起一个流程实例")
     @RequestMapping(value = "/suspend/{processInstanceId}", method = RequestMethod.GET)
     @ResponseBody
-    public AjaxResult suspend(@PathVariable String processInstanceId) {
+    public AjaxResult suspend(@PathVariable String processInstanceId)
+    {
+        // 挂起流程实例
         runtimeService.suspendProcessInstanceById(processInstanceId);
+        
+        // 发送邮件通知
+        try
+        {
+            // 获取流程实例信息
+            ProcessInstance processInstance = runtimeService.createProcessInstanceQuery()
+                    .processInstanceId(processInstanceId)
+                    .singleResult();
+            
+            if (processInstance != null)
+            {
+                String processName = processInstance.getProcessDefinitionName();
+                String businessKey = processInstance.getBusinessKey();
+                String startUserId = processInstance.getStartUserId();
+                String suspendTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+                
+                // 构建邮件内容
+                String subject = String.format("【流程挂起通知】%s", processName);
+                String content = String.format(
+                        "流程名称：%s\n流程ID：%s\n业务主键：%s\n挂起时间：%s",
+                        processName, processInstanceId, businessKey, suspendTime
+                );
+                
+                // 通知管理员（已分配角色的用户）
+                try
+                {
+                    List<SysUser> adminUsers = userService.selectAllocatedList(new SysUser());
+                    for (SysUser admin : adminUsers)
+                    {
+                        if (StringUtils.isNotEmpty(admin.getEmail()))
+                        {
+                            mailService.sendSimpleMail(admin.getEmail(), subject, content);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    // 管理员邮件发送失败不影响主流程
+                }
+                
+                // 通知流程申请人
+                if (StringUtils.isNotEmpty(startUserId))
+                {
+                    try
+                    {
+                        SysUser applicant = userService.selectUserByUserName(startUserId);
+                        if (applicant != null && StringUtils.isNotEmpty(applicant.getEmail()))
+                        {
+                            mailService.sendSimpleMail(applicant.getEmail(), subject, content);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        // 申请人邮件发送失败不影响主流程
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            // 邮件通知失败不影响挂起操作
+        }
+        
         return AjaxResult.success();
     }
 
