@@ -7,6 +7,7 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.bean.BeanUtils;
 import com.ruoyi.system.domain.*;
 import com.ruoyi.system.mapper.ActRuExecutionMapper;
+import com.ruoyi.system.service.IProcessNotificationService;
 import com.ruoyi.web.util.ActivitiTracingChart;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -68,6 +69,9 @@ public class FlowMonitorController extends BaseController {
 
     @Resource
     ActRuExecutionMapper actRuExecutionMapper;
+
+    @Resource
+    private IProcessNotificationService notificationService;
 
 
     private String prefix = "activiti/monitor";
@@ -270,6 +274,17 @@ public class FlowMonitorController extends BaseController {
     @ResponseBody
     public AjaxResult suspend(@PathVariable String processInstanceId) {
         runtimeService.suspendProcessInstanceById(processInstanceId);
+        
+        // 异步发送通知（避免阻塞主流程）
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                notificationService.notifyProcessSuspended(processInstanceId);
+            } catch (Exception e) {
+                // 记录错误但不影响主流程
+                System.err.println("发送流程挂起通知失败: " + e.getMessage());
+            }
+        });
+        
         return AjaxResult.success();
     }
 

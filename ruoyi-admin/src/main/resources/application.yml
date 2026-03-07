@@ -103,6 +103,18 @@ spring:
     view:
       suffix: .html
     static-path-pattern: /**
+  # 邮件配置
+  mail:
+    host: smtp.example.com
+    port: 587
+    username: your-email@example.com
+    password: your-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 # token配置
 token:
