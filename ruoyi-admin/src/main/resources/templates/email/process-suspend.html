@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>流程挂起通知</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <!-- 头部 -->
+        <div style="background-color: #e74c3c; color: #fff; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">流程挂起通知</h1>
+        </div>
+
+        <!-- 内容区域 -->
+        <div style="padding: 30px;">
+            <p style="font-size: 16px;">您好，</p>
+            <p style="font-size: 16px;">以下流程已被挂起，请及时处理：</p>
+
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; color: #666; width: 120px;">流程名称</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: bold;" th:text="${processName}">请假申请</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; color: #666;">流程实例ID</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;" th:text="${processInstanceId}">10001</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; color: #666;">操作人</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;" th:text="${operator}">admin</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; color: #666;">挂起原因</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;" th:text="${reason}">需要补充材料</td>
+                </tr>
+            </table>
+
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">
+                此邮件由系统自动发送，请勿直接回复。
+            </p>
+        </div>
+
+        <!-- 底部 -->
+        <div style="background-color: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; font-size: 12px; color: #999;">
+            <p style="margin: 0;">RuoYi 工作流管理系统</p>
+        </div>
+    </div>
+</body>
+</html>
