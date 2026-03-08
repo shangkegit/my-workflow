@@ -17,8 +17,10 @@ import org.activiti.bpmn.model.BpmnModel;
 import org.activiti.editor.constants.ModelDataJsonConstants;
 import org.activiti.engine.*;
 import org.activiti.engine.repository.*;
+import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.image.ProcessDiagramGenerator;
 import org.apache.commons.io.IOUtils;
+import com.ruoyi.system.service.IEmailService;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -57,6 +59,9 @@ public class FlowController extends BaseController {
 
     @Resource
     IdentityService identityService;
+
+    @Resource
+    private IEmailService emailService;
 
 
     @ApiOperation("上传一个工作流文件")
@@ -229,5 +234,35 @@ public class FlowController extends BaseController {
         v.put("name", "wsz");
         runtimeService.startProcessInstanceById(pdid, v);
         return AjaxResult.success();
+    }
+
+    @ApiOperation("挂起流程实例")
+    @Log(title = "挂起流程实例", businessType = BusinessType.UPDATE)
+    @PostMapping("/suspendProcessInstance")
+    @ResponseBody
+    public AjaxResult suspendProcessInstance(@RequestParam("processInstanceId") String processInstanceId,
+                                              @RequestParam(value = "reason", required = false) String reason)
+    {
+        // 挂起流程实例
+        runtimeService.suspendProcessInstanceById(processInstanceId);
+
+        // 获取流程实例信息
+        ProcessInstance instance = runtimeService.createProcessInstanceQuery()
+                .processInstanceId(processInstanceId)
+                .singleResult();
+
+        if (instance != null)
+        {
+            // 发送邮件通知（异步）
+            String operator = SecurityUtils.getUsername();
+            emailService.sendSuspendNotification(
+                    processInstanceId,
+                    instance.getName(),
+                    operator,
+                    reason
+            );
+        }
+
+        return AjaxResult.success("流程已挂起");
     }
 }
