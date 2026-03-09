@@ -74,6 +74,21 @@ spring:
     restart:
       # 热部署开关
       enabled: true
+  # 邮件配置
+  mail:
+    host: smtp.example.com
+    port: 465
+    username: noreply@example.com
+    password: your_password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
   # redis 配置
   redis:
     # 地址

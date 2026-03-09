@@ -5,20 +5,28 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.entity.SysRole;
 import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.system.service.IMailService;
+import com.ruoyi.system.service.ISysRoleService;
+import com.ruoyi.system.service.ISysUserService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
 import org.activiti.bpmn.model.BpmnModel;
 import org.activiti.editor.constants.ModelDataJsonConstants;
 import org.activiti.engine.*;
+import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.repository.*;
+import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.image.ProcessDiagramGenerator;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -33,6 +41,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -42,6 +52,8 @@ import java.util.zip.ZipInputStream;
 @Controller
 @RequestMapping("/flow/manage")
 public class FlowController extends BaseController {
+
+    private static final Logger log = LoggerFactory.getLogger(FlowController.class);
 
     @Resource
     private RuntimeService runtimeService;
@@ -57,6 +69,18 @@ public class FlowController extends BaseController {
 
     @Resource
     IdentityService identityService;
+
+    @Resource
+    private IMailService mailService;
+
+    @Resource
+    private ISysUserService userService;
+
+    @Resource
+    private ISysRoleService roleService;
+
+    @Resource
+    private HistoryService historyService;
 
 
     @ApiOperation("上传一个工作流文件")
@@ -200,6 +224,10 @@ public class FlowController extends BaseController {
         } else {
             repositoryService.suspendProcessDefinitionById(pdid, flag, null);
         }
+
+        // 发送邮件通知
+        sendSuspendNotification(pdid);
+
         return AjaxResult.success();
     }
 
@@ -229,5 +257,127 @@ public class FlowController extends BaseController {
         v.put("name", "wsz");
         runtimeService.startProcessInstanceById(pdid, v);
         return AjaxResult.success();
+    }
+
+    /**
+     * 发送流程挂起通知邮件
+     * @param processDefinitionId 流程定义ID
+     */
+    private void sendSuspendNotification(String processDefinitionId) {
+        try {
+            // 获取流程定义信息
+            ProcessDefinition pd = repositoryService.createProcessDefinitionQuery()
+                .processDefinitionId(processDefinitionId)
+                .singleResult();
+
+            String processName = pd.getName();
+
+            // 获取运行中的流程实例申请人邮箱
+            List<String> applicantEmails = getApplicantEmails(processDefinitionId);
+
+            // 获取管理员邮箱
+            List<String> adminEmails = getAdminEmails();
+
+            // 通知申请人
+            if (!applicantEmails.isEmpty()) {
+                String applicantSubject = "流程暂停通知";
+                String applicantContent = String.format(
+                    "您好，\n\n您申请的流程【%s】已被管理员暂停。\n" +
+                    "暂停期间流程将无法继续执行，请耐心等待或联系管理员。\n\n" +
+                    "此邮件为系统自动发送，请勿回复。",
+                    processName
+                );
+                mailService.sendMail(applicantEmails, applicantSubject, applicantContent);
+            }
+
+            // 通知管理员
+            if (!adminEmails.isEmpty()) {
+                String adminSubject = "流程挂起通知";
+                String adminContent = String.format(
+                    "您好，\n\n流程【%s】已被挂起。\n" +
+                    "受影响的流程实例数量：%d\n" +
+                    "申请人已收到通知。\n\n" +
+                    "此邮件为系统自动发送，请勿回复。",
+                    processName, applicantEmails.size()
+                );
+                mailService.sendMail(adminEmails, adminSubject, adminContent);
+            }
+
+        } catch (Exception e) {
+            log.error("发送挂起通知邮件失败", e);
+            // 不影响主流程，仅记录日志
+        }
+    }
+
+    /**
+     * 获取流程实例申请人的邮箱列表
+     * @param processDefinitionId 流程定义ID
+     * @return 邮箱列表
+     */
+    private List<String> getApplicantEmails(String processDefinitionId) {
+        List<String> emails = new ArrayList<>();
+
+        // 查询运行中的流程实例
+        List<ProcessInstance> instances = runtimeService.createProcessInstanceQuery()
+            .processDefinitionId(processDefinitionId)
+            .list();
+
+        Set<String> userIds = new HashSet<>();
+        for (ProcessInstance instance : instances) {
+            String startUserId = getStartUserId(instance.getId());
+            if (StringUtils.isNotEmpty(startUserId)) {
+                userIds.add(startUserId);
+            }
+        }
+
+        // 查询用户邮箱
+        for (String userId : userIds) {
+            SysUser user = userService.selectUserByUserName(userId);
+            if (user != null && StringUtils.isNotEmpty(user.getEmail())) {
+                emails.add(user.getEmail());
+            }
+        }
+
+        return emails;
+    }
+
+    /**
+     * 获取流程实例的发起人ID
+     * @param processInstanceId 流程实例ID
+     * @return 发起人用户名
+     */
+    private String getStartUserId(String processInstanceId) {
+        HistoricProcessInstance history = historyService.createHistoricProcessInstanceQuery()
+            .processInstanceId(processInstanceId)
+            .singleResult();
+        return history != null ? history.getStartUserId() : null;
+    }
+
+    /**
+     * 获取管理员用户的邮箱列表
+     * @return 邮箱列表
+     */
+    private List<String> getAdminEmails() {
+        List<String> emails = new ArrayList<>();
+
+        // 查询角色key为admin的角色
+        SysRole roleQuery = new SysRole();
+        roleQuery.setRoleKey("admin");
+        List<SysRole> roles = roleService.selectRoleList(roleQuery);
+
+        if (roles != null && !roles.isEmpty()) {
+            Long roleId = roles.get(0).getRoleId();
+            // 查询具有管理员角色的用户
+            SysUser userQuery = new SysUser();
+            userQuery.setRoleId(roleId);
+            List<SysUser> admins = userService.selectAllocatedList(userQuery);
+            for (SysUser admin : admins) {
+                if (StringUtils.isNotEmpty(admin.getEmail())) {
+                    emails.add(admin.getEmail());
+                }
+            }
+        }
+
+        return emails;
     }
 }
