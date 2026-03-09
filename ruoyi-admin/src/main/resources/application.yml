@@ -47,6 +47,12 @@ user:
 
 # Spring配置
 spring:
+  # 邮件配置
+  mail:
+    host: ${MAIL_HOST:smtp.example.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
   activiti:
     database-schema-update: true
     check-process-definitions: true
