@@ -52,6 +52,19 @@ spring:
     check-process-definitions: true
     process-definition-location-prefix: classpath:/processes/
     history-level: full
+  # 邮件配置
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
   # 资源信息
   messages:
     # 国际化资源文件路径

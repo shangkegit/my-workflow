@@ -10,6 +10,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.system.service.ISysEmailService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
@@ -57,6 +58,9 @@ public class FlowController extends BaseController {
 
     @Resource
     IdentityService identityService;
+
+    @Resource
+    private ISysEmailService emailService;
 
 
     @ApiOperation("上传一个工作流文件")
@@ -194,12 +198,27 @@ public class FlowController extends BaseController {
     @ResponseBody
     public AjaxResult suspendProcessDefinition(@RequestParam("pdid") String pdid, @RequestParam("flag") Boolean flag,
                                                @RequestParam(value="date", required = false) String date) throws Exception {
+        // 获取流程定义信息
+        ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery()
+                .processDefinitionId(pdid).singleResult();
+        String processName = processDefinition != null ? processDefinition.getName() : pdid;
+
         if (StringUtils.isNotEmpty(date)) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             repositoryService.suspendProcessDefinitionById(pdid, flag,  sdf.parse(date));
         } else {
             repositoryService.suspendProcessDefinitionById(pdid, flag, null);
         }
+
+        // 发送邮件通知（异步，不阻塞主流程）
+        try {
+            SysUser currentUser = SecurityUtils.getLoginUser().getUser();
+            emailService.sendSuspendNotification(processName, currentUser.getUserId());
+        } catch (Exception e) {
+            // 邮件发送失败不影响主流程
+            logger.error("发送挂起通知邮件失败: {}", e.getMessage());
+        }
+
         return AjaxResult.success();
     }
 

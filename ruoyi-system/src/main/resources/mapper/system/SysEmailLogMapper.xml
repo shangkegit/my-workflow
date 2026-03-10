@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysEmailLogMapper">
+
+    <resultMap type="SysEmailLog" id="SysEmailLogResult">
+        <id     property="id"            column="id"             />
+        <result property="emailType"    column="email_type"     />
+        <result property="recipient"    column="recipient"      />
+        <result property="recipientName" column="recipient_name" />
+        <result property="subject"      column="subject"        />
+        <result property="content"      column="content"        />
+        <result property="processId"    column="process_id"     />
+        <result property="processName"  column="process_name"   />
+        <result property="status"       column="status"         />
+        <result property="errorMsg"     column="error_msg"      />
+        <result property="sendTime"     column="send_time"      />
+        <result property="createTime"   column="create_time"    />
+    </resultMap>
+
+    <insert id="insertEmailLog" parameterType="SysEmailLog" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_email_log(
+            email_type,
+            recipient,
+            recipient_name,
+            subject,
+            content,
+            process_id,
+            process_name,
+            status,
+            error_msg,
+            send_time,
+            create_time
+        ) values (
+            #{emailType},
+            #{recipient},
+            #{recipientName},
+            #{subject},
+            #{content},
+            #{processId},
+            #{processName},
+            #{status},
+            #{errorMsg},
+            #{sendTime},
+            sysdate()
+        )
+    </insert>
+
+    <update id="updateEmailLogStatus">
+        update sys_email_log
+        set status = #{status},
+            error_msg = #{errorMsg},
+            send_time = #{sendTime}
+        where id = #{id}
+    </update>
+
+</mapper>
