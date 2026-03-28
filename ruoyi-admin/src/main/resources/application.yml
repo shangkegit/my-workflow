@@ -144,4 +144,7 @@ xss:
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
 
-
+# 插件配置
+plugin:
+  storage:
+    path: ./plugins
