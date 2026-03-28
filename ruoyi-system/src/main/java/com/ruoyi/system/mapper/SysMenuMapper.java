@@ -122,4 +122,20 @@ public interface SysMenuMapper
      * @return 结果
      */
     public SysMenu checkMenuNameUnique(@Param("menuName") String menuName, @Param("parentId") Long parentId);
+
+    /**
+     * 根据插件ID查询菜单
+     *
+     * @param pluginId 插件ID
+     * @return 菜单列表
+     */
+    public List<SysMenu> selectMenuByPluginId(String pluginId);
+
+    /**
+     * 根据插件ID删除菜单
+     *
+     * @param pluginId 插件ID
+     * @return 结果
+     */
+    public int deleteMenuByPluginId(String pluginId);
 }

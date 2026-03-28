@@ -63,6 +63,9 @@ public class SysMenu extends BaseEntity
     /** 菜单图标 */
     private String icon;
 
+    /** 插件ID */
+    private String pluginId;
+
     /** 子菜单 */
     private List<SysMenu> children = new ArrayList<SysMenu>();
 
@@ -221,6 +224,16 @@ public class SysMenu extends BaseEntity
     public void setIcon(String icon)
     {
         this.icon = icon;
+    }
+
+    public String getPluginId()
+    {
+        return pluginId;
+    }
+
+    public void setPluginId(String pluginId)
+    {
+        this.pluginId = pluginId;
     }
 
     public List<SysMenu> getChildren()

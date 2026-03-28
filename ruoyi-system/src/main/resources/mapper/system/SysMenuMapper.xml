@@ -25,6 +25,7 @@
 		<result property="updateTime"     column="update_time"    />
 		<result property="updateBy"       column="update_by"      />
 		<result property="remark"         column="remark"         />
+		<result property="pluginId"       column="plugin_id"      />
 	</resultMap>
 
 	<sql id="selectMenuVo">
@@ -173,6 +174,7 @@
 		<if test="icon != null and icon != ''">icon,</if>
 		<if test="remark != null and remark != ''">remark,</if>
 		<if test="createBy != null and createBy != ''">create_by,</if>
+		<if test="pluginId != null and pluginId != ''">plugin_id,</if>
 		create_time
 		)values(
 		<if test="menuId != null and menuId != 0">#{menuId},</if>
@@ -191,12 +193,22 @@
 		<if test="icon != null and icon != ''">#{icon},</if>
 		<if test="remark != null and remark != ''">#{remark},</if>
 		<if test="createBy != null and createBy != ''">#{createBy},</if>
+		<if test="pluginId != null and pluginId != ''">#{pluginId},</if>
 		sysdate()
 		)
 	</insert>
 	
 	<delete id="deleteMenuById" parameterType="Long">
 	    delete from sys_menu where menu_id = #{menuId}
+	</delete>
+
+	<select id="selectMenuByPluginId" parameterType="String" resultMap="SysMenuResult">
+		select menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark, plugin_id
+		from sys_menu where plugin_id = #{pluginId}
+	</select>
+
+	<delete id="deleteMenuByPluginId" parameterType="String">
+		delete from sys_menu where plugin_id = #{pluginId}
 	</delete>
 
 </mapper> 
