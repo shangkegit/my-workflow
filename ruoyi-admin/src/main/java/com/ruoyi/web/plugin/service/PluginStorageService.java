@@ -34,7 +34,8 @@ public class PluginStorageService {
                     Files.createDirectories(filePath.getParent());
                     Files.copy(zis, filePath);
 
-                    String name = entry.getName();
+                    // 统一使用正斜杠处理路径
+                    String name = entry.getName().replace("\\", "/");
                     if (name.startsWith("backend/") && name.endsWith(".jar")) {
                         context.setJarFile(filePath.toFile());
                     } else if (name.startsWith("frontend/") && name.endsWith(".js")) {
@@ -63,5 +64,9 @@ public class PluginStorageService {
 
     public String getFrontendUrl(String pluginId) {
         return "/plugins/" + pluginId + "-plugin/frontend/" + pluginId + "Form.umd.js";
+    }
+
+    public String getStoragePath() {
+        return storagePath;
     }
 }

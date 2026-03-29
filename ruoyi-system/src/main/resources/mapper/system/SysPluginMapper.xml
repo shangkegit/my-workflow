@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysPluginMapper">
+
+    <resultMap type="com.ruoyi.common.core.plugin.model.SysPlugin" id="SysPluginResult">
+        <id     property="pluginId"      column="plugin_id"      />
+        <result property="pluginName"    column="plugin_name"    />
+        <result property="processKey"    column="process_key"    />
+        <result property="version"       column="version"        />
+        <result property="status"        column="status"         />
+        <result property="author"        column="author"         />
+        <result property="description"   column="description"    />
+        <result property="manifestJson"  column="manifest_json"  />
+        <result property="installTime"   column="install_time"   />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectPluginVo">
+        select plugin_id, plugin_name, process_key, version, status, author, description, manifest_json, install_time, create_time, update_time
+        from sys_plugin
+    </sql>
+
+    <select id="selectPluginById" parameterType="String" resultMap="SysPluginResult">
+        <include refid="selectPluginVo"/>
+        where plugin_id = #{pluginId}
+    </select>
+
+    <select id="selectPluginList" parameterType="com.ruoyi.common.core.plugin.model.SysPlugin" resultMap="SysPluginResult">
+        <include refid="selectPluginVo"/>
+        <where>
+            <if test="pluginName != null and pluginName != ''">
+                AND plugin_name like concat('%', #{pluginName}, '%')
+            </if>
+            <if test="processKey != null and processKey != ''">
+                AND process_key = #{processKey}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="checkPluginIdUnique" parameterType="String" resultMap="SysPluginResult">
+        <include refid="selectPluginVo"/>
+        where plugin_id = #{pluginId} limit 1
+    </select>
+
+    <insert id="insertPlugin" parameterType="com.ruoyi.common.core.plugin.model.SysPlugin">
+        insert into sys_plugin (
+            plugin_id,
+            plugin_name,
+            process_key,
+            version,
+            status,
+            author,
+            description,
+            manifest_json,
+            install_time,
+            create_time
+        ) values (
+            #{pluginId},
+            #{pluginName},
+            #{processKey},
+            #{version},
+            #{status},
+            #{author},
+            #{description},
+            #{manifestJson},
+            #{installTime},
+            sysdate()
+        )
+    </insert>
+
+    <update id="updatePlugin" parameterType="com.ruoyi.common.core.plugin.model.SysPlugin">
+        update sys_plugin
+        <set>
+            <if test="pluginName != null and pluginName != ''">plugin_name = #{pluginName},</if>
+            <if test="processKey != null and processKey != ''">process_key = #{processKey},</if>
+            <if test="version != null and version != ''">version = #{version},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="author != null and author != ''">author = #{author},</if>
+            <if test="description != null and description != ''">description = #{description},</if>
+            <if test="manifestJson != null">manifest_json = #{manifestJson},</if>
+            <if test="installTime != null">install_time = #{installTime},</if>
+            update_time = sysdate()
+        </set>
+        where plugin_id = #{pluginId}
+    </update>
+
+    <delete id="deletePluginById" parameterType="String">
+        delete from sys_plugin where plugin_id = #{pluginId}
+    </delete>
+
+    <delete id="deletePluginByIds" parameterType="String">
+        delete from sys_plugin where plugin_id in
+        <foreach item="pluginId" collection="array" open="(" separator="," close=")">
+            #{pluginId}
+        </foreach>
+    </delete>
+
+</mapper>

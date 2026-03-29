@@ -3,6 +3,8 @@ package com.ruoyi.web.plugin.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.common.core.plugin.model.MenuConfig;
 import com.ruoyi.common.core.plugin.model.PluginManifest;
+import com.ruoyi.common.core.plugin.model.SysPlugin;
+import com.ruoyi.system.service.ISysPluginService;
 import com.ruoyi.web.plugin.PluginManager;
 import org.activiti.engine.RepositoryService;
 import org.activiti.engine.repository.Deployment;
@@ -15,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -32,6 +35,8 @@ public class PluginDeployService {
     private PluginMenuService menuService;
     @Autowired
     private RepositoryService repositoryService;
+    @Autowired
+    private ISysPluginService sysPluginService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -89,6 +94,9 @@ public class PluginDeployService {
             context.checkpoint("plugin_loaded");
             log.info("[{}] 步骤5: Java 插件加载完成", context.getPluginId());
 
+            // 步骤5.5：保存插件信息到数据库
+            savePluginToDatabase(context, manifest);
+
             // 步骤6：部署 BPMN
             if (context.getBpmnFile() != null) {
                 Deployment deployment = repositoryService.createDeployment()
@@ -118,6 +126,25 @@ public class PluginDeployService {
         }
     }
 
+    private void savePluginToDatabase(PluginContext context, PluginManifest manifest) {
+        SysPlugin dbPlugin = new SysPlugin();
+        dbPlugin.setPluginId(context.getPluginId());
+        dbPlugin.setPluginName(manifest.getName());
+        dbPlugin.setProcessKey(manifest.getProcessKey());
+        dbPlugin.setVersion(manifest.getVersion());
+        dbPlugin.setStatus("0");
+        dbPlugin.setAuthor(manifest.getAuthor());
+        dbPlugin.setDescription(manifest.getDescription());
+        dbPlugin.setInstallTime(new Date());
+        try {
+            dbPlugin.setManifestJson(objectMapper.writeValueAsString(manifest));
+        } catch (Exception e) {
+            log.warn("序列化manifest失败", e);
+        }
+        sysPluginService.insertPlugin(dbPlugin);
+        log.info("[{}] 插件信息已保存到数据库", context.getPluginId());
+    }
+
     private void rollback(PluginContext context) {
         String pluginId = context.getPluginId();
 
@@ -131,6 +158,9 @@ public class PluginDeployService {
     }
 
     public void undeploy(String pluginId) {
+        // 从数据库删除插件信息
+        sysPluginService.deletePluginById(pluginId);
+
         PluginContext context = new PluginContext();
         context.setPluginId(pluginId);
         context.checkpoint("plugin_loaded");

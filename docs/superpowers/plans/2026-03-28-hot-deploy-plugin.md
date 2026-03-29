@@ -1814,4 +1814,262 @@ git commit -m "feat(plugin): 完成流程热部署插件系统"
 
 ---
 
-**计划完成，保存至 `docs/superpowers/plans/2026-03-28-hot-deploy-plugin.md`**
+## Task 12: 插件状态管理功能
+
+**Files:**
+- Modify: `ruoyi-admin/src/main/java/com/ruoyi/web/plugin/PluginManager.java`
+- Modify: `ruoyi-admin/src/main/java/com/ruoyi/web/controller/plugin/PluginController.java`
+
+- [x] **Step 1: 在 PluginManager 添加状态管理方法**
+
+```java
+/**
+ * 启用插件
+ */
+public void enablePlugin(String pluginId) {
+    PluginInfo info = pluginInfos.get(pluginId);
+    if (info != null) {
+        info.setStatus("0"); // 0=正常/启用
+        // 更新数据库
+        SysPlugin dbPlugin = new SysPlugin();
+        dbPlugin.setPluginId(pluginId);
+        dbPlugin.setStatus("0");
+        pluginService.updatePlugin(dbPlugin);
+        log.info("插件 [{}] 已启用", pluginId);
+    }
+}
+
+/**
+ * 禁用插件
+ */
+public void disablePlugin(String pluginId) {
+    PluginInfo info = pluginInfos.get(pluginId);
+    if (info != null) {
+        info.setStatus("1"); // 1=禁用
+        // 更新数据库
+        SysPlugin dbPlugin = new SysPlugin();
+        dbPlugin.setPluginId(pluginId);
+        dbPlugin.setStatus("1");
+        pluginService.updatePlugin(dbPlugin);
+        log.info("插件 [{}] 已禁用", pluginId);
+    }
+}
+
+/**
+ * 检查插件是否启用
+ */
+public boolean isPluginEnabled(String pluginId) {
+    PluginInfo info = pluginInfos.get(pluginId);
+    return info != null && "0".equals(info.getStatus());
+}
+```
+
+- [x] **Step 2: 在 PluginController 添加状态管理接口**
+
+```java
+@ApiOperation("更新插件状态")
+@Log(title = "插件管理", businessType = BusinessType.UPDATE)
+@PutMapping("/{pluginId}/status")
+@PreAuthorize("@ss.hasPermi('plugin:edit')")
+public AjaxResult updatePluginStatus(@PathVariable String pluginId, @RequestBody String status) {
+    try {
+        if ("0".equals(status)) {
+            pluginManager.enablePlugin(pluginId);
+            return AjaxResult.success("启用成功");
+        } else if ("1".equals(status)) {
+            pluginManager.disablePlugin(pluginId);
+            return AjaxResult.success("禁用成功");
+        } else {
+            return AjaxResult.error("无效的状态值");
+        }
+    } catch (Exception e) {
+        return AjaxResult.error("操作失败: " + e.getMessage());
+    }
+}
+```
+
+- [x] **Step 3: 提交**
+
+```bash
+git add ruoyi-admin/src/main/java/com/ruoyi/web/plugin/PluginManager.java
+git add ruoyi-admin/src/main/java/com/ruoyi/web/controller/plugin/PluginController.java
+git commit -m "feat(plugin): 添加插件状态管理功能"
+```
+
+---
+
+## Task 13: 插件导出功能
+
+**Files:**
+- Modify: `ruoyi-admin/src/main/java/com/ruoyi/web/plugin/PluginManager.java`
+- Modify: `ruoyi-admin/src/main/java/com/ruoyi/web/controller/plugin/PluginController.java`
+
+- [x] **Step 1: 在 PluginManager 添加导出方法**
+
+```java
+/**
+ * 导出插件包
+ * @param processType 流程类型
+ * @param outputDir 输出目录
+ * @return 导出的zip文件
+ */
+public File exportPlugin(String processType, String outputDir) throws Exception {
+    // 查找对应的插件
+    PluginInfo targetPlugin = null;
+    for (PluginInfo info : pluginInfos.values()) {
+        if (processType.equals(info.getProcessKey())) {
+            targetPlugin = info;
+            break;
+        }
+    }
+    if (targetPlugin == null) {
+        throw new RuntimeException("未找到流程类型为 " + processType + " 的插件");
+    }
+
+    String pluginId = targetPlugin.getPluginId();
+    PluginManifest manifest = manifests.get(pluginId);
+    if (manifest == null) {
+        throw new RuntimeException("插件清单不存在: " + pluginId);
+    }
+
+    // 创建临时目录
+    File tempDir = new File(outputDir, "plugin-export-" + System.currentTimeMillis());
+    tempDir.mkdirs();
+
+    try {
+        // 1. 复制 manifest.json
+        File manifestFile = new File(tempDir, "manifest.json");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(manifestFile, manifest);
+
+        // 2. 复制后端 JAR
+        File pluginDir = new File(System.getProperty("user.dir") + "/plugins/" + pluginId + "-plugin");
+        File backendDir = new File(tempDir, "backend");
+        backendDir.mkdirs();
+        File[] jars = new File(pluginDir, "backend").listFiles((d, name) -> name.endsWith(".jar"));
+        if (jars != null && jars.length > 0) {
+            Files.copy(jars[0].toPath(), new File(backendDir, jars[0].getName()).toPath());
+        }
+
+        // 3. 复制前端 JS
+        File frontendDir = new File(tempDir, "frontend");
+        frontendDir.mkdirs();
+        File[] jsFiles = new File(pluginDir, "frontend").listFiles((d, name) -> name.endsWith(".js"));
+        if (jsFiles != null && jsFiles.length > 0) {
+            Files.copy(jsFiles[0].toPath(), new File(frontendDir, jsFiles[0].getName()).toPath());
+        }
+
+        // 4. 复制 BPMN
+        File bpmnDir = new File(tempDir, "bpmn");
+        bpmnDir.mkdirs();
+        File[] bpmnFiles = new File(pluginDir, "bpmn").listFiles((d, name) -> name.endsWith(".xml"));
+        if (bpmnFiles != null && bpmnFiles.length > 0) {
+            Files.copy(bpmnFiles[0].toPath(), new File(bpmnDir, bpmnFiles[0].getName()).toPath());
+        }
+
+        // 5. 打包为 zip
+        String zipFileName = processType + "-plugin.zip";
+        File zipFile = new File(outputDir, zipFileName);
+        zipDirectory(tempDir, zipFile);
+
+        // 删除临时目录
+        deleteDirectory(tempDir);
+
+        log.info("导出插件包: {}", zipFile.getAbsolutePath());
+        return zipFile;
+
+    } catch (Exception e) {
+        deleteDirectory(tempDir);
+        throw e;
+    }
+}
+```
+
+- [x] **Step 2: 在 PluginController 添加导出接口**
+
+```java
+@ApiOperation("导出插件")
+@Log(title = "插件管理", businessType = BusinessType.EXPORT)
+@GetMapping("/export/{processType}")
+@PreAuthorize("@ss.hasPermi('plugin:export')")
+public void exportPlugin(@PathVariable String processType, HttpServletResponse response) {
+    try {
+        File zipFile = pluginManager.exportPlugin(processType, System.getProperty("java.io.tmpdir"));
+
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment; filename=" + processType + "-plugin.zip");
+
+        try (FileInputStream fis = new FileInputStream(zipFile);
+             OutputStream os = response.getOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+            os.flush();
+        }
+
+        // 删除临时文件
+        zipFile.delete();
+    } catch (Exception e) {
+        log.error("导出插件失败", e);
+    }
+}
+```
+
+- [x] **Step 3: 提交**
+
+```bash
+git add ruoyi-admin/src/main/java/com/ruoyi/web/plugin/PluginManager.java
+git add ruoyi-admin/src/main/java/com/ruoyi/web/controller/plugin/PluginController.java
+git commit -m "feat(plugin): 添加插件导出功能"
+```
+
+---
+
+## Task 14: 插件持久化完善
+
+**Files:**
+- Modify: `ruoyi-admin/src/main/java/com/ruoyi/web/plugin/service/PluginStorageService.java`
+
+- [x] **Step 1: 修复 PluginStorageService 方法名错误**
+
+修复 `contextDeleteDir` 为 `deletePluginDir`，修复 `getFrontendFrontendUrl` 为 `getFrontendUrl`。
+
+- [x] **Step 2: 添加 getStoragePath 方法**
+
+```java
+public String getStoragePath() {
+    return storagePath;
+}
+```
+
+- [x] **Step 3: 提交**
+
+```bash
+git add ruoyi-admin/src/main/java/com/ruoyi/web/plugin/service/PluginStorageService.java
+git commit -m "fix(plugin): 修复 PluginStorageService 方法名错误"
+```
+
+---
+
+## 更新后的自检清单
+
+| Spec 章节 | 对应 Task |
+|-----------|----------|
+| 流程包结构 | Task 1, 5 |
+| ProcessPlugin 接口 | Task 1 |
+| 插件类加载器 | Task 2 |
+| Spring Bean 注册 | Task 2 |
+| 前端组件加载 | Task 7 |
+| 数据库脚本执行 | Task 3 |
+| 菜单导入 | Task 4 |
+| API 接口 | Task 6, **Task 12, Task 13** |
+| 前端管理界面 | Task 8 |
+| 错误处理与回滚 | Task 5 |
+| **插件状态管理** | **Task 12** |
+| **插件导出功能** | **Task 13** |
+| **插件持久化** | **Task 14** |
+
+---
+
+**计划更新完成，保存至 `docs/superpowers/plans/2026-03-28-hot-deploy-plugin.md`**
